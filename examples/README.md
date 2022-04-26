@@ -1,0 +1,23 @@
+## 例子文件说明
+
+### bert embedding
+bert、roberta、nezha模型，输入一个句子，得到这个句子的embedding
+1. [get_bert_embedding.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/bert_embedding/get_bert_embedding.py)
+
+### ner 
+bert、roberta、nezha模型，命名实体识别任务，支持crf与global pointer方式
+1. [train_bert_ner_crf_people_daily.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/ner/train_bert_ner_crf_people_daily.py)  crf方式进行ner任务
+2. [train_roberta_ner_gp_people_daily.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/ner/train_roberta_ner_gp_people_daily.py)  global pointer 方式进行ner任务
+
+### seq2seq
+生成任务，支持bert、roberta、nezha、gpt2、t5、bart等模型
+1. [gpt2_text_writting.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/gpt2_text_writting.py) gpt2续写
+2. [train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title.py) roberta模型自动标题训练
+3. [train_roberta_auto_title_multi_gpu.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title_multi_gpu.py)  roberta自动标题训练（多gpu版本）
+
+### text classification
+bert、roberta、nezha模型，支持文本分类、情感分析、语义匹配任务
+1. [train_roberta_news_title_classification.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_news_title_classification.py) 新闻摘要文本分类训练
+2. [train_roberta_news_title_classification_multi_gpu.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_news_title_classification_multi_gpu.py) 新闻摘要文本分类训练（多gpu版本）
+3. [train_roberta_semantic_matching.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_semantic_matching.py) 语义匹配训练
+4. [test.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/test.py) 加载训练好的模型进行测试
