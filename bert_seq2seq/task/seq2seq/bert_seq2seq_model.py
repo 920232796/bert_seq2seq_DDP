@@ -25,14 +25,12 @@ class BertSeq2SeqModel(BasicBert):
         input_ids = data["input_ids"]
         token_type_ids = data["token_type_ids"]
         labels = data.get("labels", None)
-
-        if labels is not None :
-            labels = labels.to(self.device)
+        device = input_ids.device
 
         input_shape = input_ids.shape
         seq_len = input_shape[1]
         ## 构建特殊的mask
-        ones = torch.ones((1, 1, seq_len, seq_len), dtype=torch.float32, device=self.device)
+        ones = torch.ones((1, 1, seq_len, seq_len), dtype=torch.float32, device=device)
         a_mask = ones.tril()
         s_ex12 = token_type_ids.unsqueeze(1).unsqueeze(2).float()
         s_ex13 = token_type_ids.unsqueeze(1).unsqueeze(3).float()
