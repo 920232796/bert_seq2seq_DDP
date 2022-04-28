@@ -2,10 +2,6 @@ import torch
 from bert_seq2seq import Tokenizer
 from bert_seq2seq import load_model
 from bert_seq2seq import Predictor
-import pandas as pd
-import numpy as np
-from tqdm import tqdm
-import collections
 import faiss
 
 faq_data_path = "../data/financezhidao_filter.csv"
