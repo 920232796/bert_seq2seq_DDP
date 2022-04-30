@@ -339,9 +339,12 @@ def t5_random_sample(model, tokenizer, text, input_max_length, out_max_length,
     return tokenizer.decode(output_ids)
 
 def gpt_random_sample(model, tokenizer, text, input_max_length, out_max_length,
-                      top_k, top_p, repetition_penalty, temperature, device):
+                      top_k, top_p, repetition_penalty, temperature, device, add_sep=False):
     tokenizer_out = tokenizer.encode_plus(text, max_length=input_max_length)
-    token_ids = tokenizer_out["input_ids"][:-1]
+    if add_sep:
+        token_ids = tokenizer_out["input_ids"]
+    else :
+        token_ids = tokenizer_out["input_ids"][:-1]
 
     lp = [RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty),
           TemperatureLogitsProcessor(temperature=temperature),

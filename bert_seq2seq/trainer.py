@@ -14,6 +14,7 @@ class Trainer:
                  device="cpu",
                  model_save_dir="./",
                  seed=1,
+                 gradient_accmulation_step=1,
 
                  ## ditributed param
                  master_ip='localhost',
@@ -27,6 +28,7 @@ class Trainer:
         self.env_type = env_type
         self.epochs = epoches
         self.device = device
+        self.gradient_accmulation_step = gradient_accmulation_step
         self.val_every_step = val_every_step
         self.model_save_dir = model_save_dir
         os.makedirs(model_save_dir, exist_ok=True)
@@ -156,6 +158,7 @@ class Trainer:
         report_loss = 0.0
         self.step = 0
         self.model.train()
+        
         for data in tqdm(self.train_dataloader, total=len(self.train_dataloader)):
             self.step += 1
             if self.env_type == "pytorch":
@@ -182,6 +185,7 @@ class Trainer:
                 self.model.train()
                 report_loss = 0.0
 
+            
             loss_v = self.train_step(**data)
             report_loss += loss_v
 
@@ -190,9 +194,11 @@ class Trainer:
 
         model_out = self.model(**model_in)
         loss = model_out["loss"]
-        self.optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
+        if self.step % self.gradient_accmulation_step == 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+        
         return loss.item()
 
     def validate(self):
