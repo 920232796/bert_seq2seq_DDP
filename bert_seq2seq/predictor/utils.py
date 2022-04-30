@@ -371,6 +371,34 @@ def gpt_random_sample(model, tokenizer, text, input_max_length, out_max_length,
 
     return tokenizer.decode(output_ids)
 
+def gpt_random_sample_from_ids(model, tokenizer, input_ids, out_max_length,
+                      top_k, top_p, repetition_penalty, temperature, device):
+
+    lp = [RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty),
+          TemperatureLogitsProcessor(temperature=temperature),
+          TopKLogitsProcessor(top_k=top_k),
+          TopPLogitsProcessor(top_p=top_p),
+          ]
+    list_processor = ListProcessor(lp)
+
+    token_ids = torch.tensor(input_ids, device=device, dtype=torch.long).view(1, -1)
+    output_ids = []
+    sep_id = tokenizer.token_end_id
+    with torch.no_grad():
+        for step in range(out_max_length):
+            scores = model(**{"input_ids": token_ids})["logits"]
+            logit_score = torch.log_softmax(scores[:, -1], dim=-1)
+            logit_score[:, tokenizer.token_unk_id] = -float('Inf')
+
+            filtered_logits = list_processor(token_ids, logit_score)
+            next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
+            if sep_id == next_token.item():
+                break
+            output_ids.append(next_token.item())
+            token_ids = torch.cat((token_ids, next_token.long()), dim=1)
+
+    return tokenizer.decode(output_ids)
+
 def bert_random_sample(model, tokenizer, text, input_max_length, out_max_length,
                        top_k, top_p, repetition_penalty, temperature, device):
     tokenizer_out = tokenizer.encode_plus(text, max_length=input_max_length)

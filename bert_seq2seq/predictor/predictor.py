@@ -1,8 +1,12 @@
 import numpy as np
+from typing import List 
 import torch
+import os 
+import math 
 from bert_seq2seq.predictor.utils import viterbi_decode, decode_labels, \
                                         bert_beamsearch, t5_random_sample, gpt_random_sample, \
-                                        t5_beamsearch, gpt_beamsearch, bert_random_sample
+                                        t5_beamsearch, gpt_beamsearch, bert_random_sample, \
+                                        gpt_random_sample_from_ids
 class Predictor:
 
     def __init__(self, model, tokenizer):
@@ -145,5 +149,34 @@ class Predictor:
             print("暂不支持的解码方式")
             import os
             os._exit(0)
+    
+    def predict_multi_response(self, sentences: List[str], top_k, top_p, 
+                                repetition_penalty, temperature, maxlen=1024, ):
+        pass 
+        
+        length = sum([len(text) for text in sentences])
+        if length > maxlen:
+            print(f"对话过长: {length}")
+            os._exit(0)
+        device = next(self.model.parameters()).device
+        input_ids = [self.tokenizer.token_start_id]
+        for index, text in enumerate(sentences):
+            if (index + 1) % 2 == 1:
+                text = "A:" + text
+            else :
+                text =  "B:" + text
+
+            text_ids = self.tokenizer.encode_plus(text, max_length=maxlen)["input_ids"][1:]
+            input_ids.extend(text_ids)
+
+        if "gpt" in self.class_name.lower():
+            return gpt_random_sample_from_ids(self.model, self.tokenizer, input_ids,
+                                     100, top_k, top_p, repetition_penalty, temperature, device)
+        
+        else :
+            print(f"暂不支持的解码方式: {self.class_name}")
+            os._exit(0)
+
+        
 
 
