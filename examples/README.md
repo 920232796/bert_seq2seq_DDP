@@ -11,7 +11,7 @@ bert、roberta、nezha模型，命名实体识别任务，支持crf与global poi
 
 ### seq2seq
 生成任务，支持bert、roberta、nezha、gpt2、t5、bart等模型
-1. [gpt2_text_writting.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/gpt2_text_writting.py) gpt2续写
+1. [test_gpt2_text_writting.py.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/test_gpt2_text_writting.py.py) gpt2续写测试
 2. [train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title.py) roberta模型自动标题训练
 3. [train_roberta_auto_title_multi_gpu.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title_multi_gpu.py)  roberta自动标题训练（多gpu版本）
 4. [test_t5_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/test_t5_auto_title.py)  T5模型自动标题测试代码
