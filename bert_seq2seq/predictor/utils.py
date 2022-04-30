@@ -303,8 +303,7 @@ def top_k_top_p_filtering(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')
     return logits
 
 def t5_random_sample(model, tokenizer, text, input_max_length, out_max_length,
-                     top_k, top_p, repetition_penalty, temperature, device, seed=123):
-    torch.manual_seed(seed)
+                     top_k, top_p, repetition_penalty, temperature, device):
 
     token_ids = tokenizer.encode_plus(text, max_length=input_max_length)["input_ids"]
     token_ids = torch.tensor(token_ids, device=device, dtype=torch.long).view(1, -1)
@@ -318,7 +317,14 @@ def t5_random_sample(model, tokenizer, text, input_max_length, out_max_length,
     list_processor = ListProcessor(lp)
     with torch.no_grad():
         for step in range(out_max_length):
-            scores = model(**{"input_ids":token_ids, "decoder_input_ids":input_decoder_ids})["logits"]
+            if step == 0:
+                model_out = model(**{"input_ids":token_ids, "decoder_input_ids":input_decoder_ids})
+                scores = model_out["logits"]
+                encoder_last_hidden_state = model_out["encoder_last_hidden_state"]
+            else :
+                model_out = model(**{"encoder_last_hidden_state":encoder_last_hidden_state, "decoder_input_ids":input_decoder_ids})
+                scores = model_out["logits"]
+
             logit_score = torch.log_softmax(scores[:, -1], dim=-1)
             logit_score[:, tokenizer.token_unk_id] = -float('Inf')
             # filtered_logits = top_k_top_p_filtering(logit_score, top_k=top_k, top_p=top_p)
@@ -333,8 +339,7 @@ def t5_random_sample(model, tokenizer, text, input_max_length, out_max_length,
     return tokenizer.decode(output_ids)
 
 def gpt_random_sample(model, tokenizer, text, input_max_length, out_max_length,
-                      top_k, top_p, repetition_penalty, temperature, device, seed=123):
-    torch.manual_seed(seed)
+                      top_k, top_p, repetition_penalty, temperature, device):
     tokenizer_out = tokenizer.encode_plus(text, max_length=input_max_length)
     token_ids = tokenizer_out["input_ids"][:-1]
 
@@ -364,8 +369,7 @@ def gpt_random_sample(model, tokenizer, text, input_max_length, out_max_length,
     return tokenizer.decode(output_ids)
 
 def bert_random_sample(model, tokenizer, text, input_max_length, out_max_length,
-                       top_k, top_p, repetition_penalty, temperature, device, seed=123):
-    torch.manual_seed(seed)
+                       top_k, top_p, repetition_penalty, temperature, device):
     tokenizer_out = tokenizer.encode_plus(text, max_length=input_max_length)
     token_ids = tokenizer_out["input_ids"]
     token_type_ids = tokenizer_out["token_type_ids"]
@@ -433,7 +437,7 @@ def t5_predict_generate(model, input_ids=None, encoder_hidden_state=None, decode
             scores = model(**{"input_ids":input_ids, "decoder_input_ids":decoder_input_ids})
         else :
             encoder_hidden_state = torch.from_numpy(encoder_hidden_state).to(device)
-            scores = model(**{"encoder_outputs": [encoder_hidden_state], "decoder_input_ids":decoder_input_ids})
+            scores = model(**{"encoder_last_hidden_state": encoder_hidden_state, "decoder_input_ids":decoder_input_ids})
 
     return scores
 

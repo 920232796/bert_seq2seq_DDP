@@ -1028,7 +1028,6 @@ class T5ForConditionalGeneration(nn.Module):
         use_cache=None,
         output_attentions=None,
         output_hidden_states=None,
-        return_dict=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
@@ -1062,7 +1061,6 @@ class T5ForConditionalGeneration(nn.Module):
                 head_mask=head_mask,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
             )
         hidden_states = encoder_outputs[0]
 
@@ -1092,7 +1090,6 @@ class T5ForConditionalGeneration(nn.Module):
             use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
         )
 
         sequence_output = decoder_outputs[0]
@@ -1103,9 +1100,9 @@ class T5ForConditionalGeneration(nn.Module):
             loss_fct = CrossEntropyLoss(ignore_index=-100)
             loss = loss_fct(lm_logits.view(-1, lm_logits.size(-1)), labels.view(-1))
             # TODO(thom): Add z_loss https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L666
-            return (loss, lm_logits)
+            return (loss, lm_logits, hidden_states)
 
-        return (lm_logits, )
+        return (lm_logits, hidden_states)
 
     def prepare_inputs_for_generation(
         self, input_ids, past=None, attention_mask=None, use_cache=None, encoder_outputs=None, **kwargs

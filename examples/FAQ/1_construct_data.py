@@ -25,7 +25,7 @@ model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 tokenizer = Tokenizer(vocab_path, do_lower_case=True, max_len=maxlen)
 bert_model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name)
 bert_model.load_pretrain_params(model_path)
-
+bert_model.to(device)
 predictor = Predictor(bert_model, tokenizer)
 
 def resave_data():

@@ -11,12 +11,11 @@ model = load_model(tokenizer.vocab,
                    model_name="gpt2",
                    task_name="seq2seq")
 model.load_pretrain_params(model_path)
-
 predictor = Predictor(model, tokenizer)
 
 if __name__ == '__main__':
     text = "今天天气好，"
     out = predictor.predict_generate_randomsample(text, out_max_length=100,
                                                   repetition_penalty=1.5,
-                                                  top_p=1.0, top_k=20, seed=123)
+                                                  top_p=1.0, top_k=20)
     print(out)

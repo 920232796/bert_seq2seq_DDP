@@ -11,9 +11,6 @@ def padding(indice, max_length, pad_idx=0):
     return torch.tensor(pad_indice)
 
 def gpt_collate_fn(batch):
-    """
-    动态padding， batch为一部分sample
-    """
 
     token_ids = [data["input_ids"] for data in batch]
     max_length = max([len(t) for t in token_ids])
@@ -27,10 +24,27 @@ def gpt_collate_fn(batch):
         "labels": target_ids_padded
     }
 
+def t5_seq2seq_collate_fn(batch):
+
+    token_ids_src = [data["input_ids"] for data in batch]
+    max_length_src = max([len(t) for t in token_ids_src])
+    token_ids_tgt = [data["target_ids"] for data in batch]
+    max_length_tgt = max([len(t) for t in token_ids_tgt])
+
+    token_ids_padded = padding(token_ids_src, max_length_src)
+    target_ids_padded = padding(token_ids_tgt, max_length_tgt)
+    labels_ids = target_ids_padded.clone()
+    labels_ids[labels_ids == 0] = -100
+    target_ids_padded = target_ids_padded[:, :-1].contiguous()
+    labels_ids = labels_ids[:, 1:].contiguous()
+
+    return {
+        "input_ids": token_ids_padded,
+        "decoder_input_ids": target_ids_padded,
+        "labels": labels_ids
+    }
+
 def bert_seq2seq_collate_fn(batch):
-    """
-    动态padding， batch为一部分sample
-    """
 
     token_ids = [data["input_ids"] for data in batch]
     max_length = max([len(t) for t in token_ids])
@@ -47,9 +61,6 @@ def bert_seq2seq_collate_fn(batch):
     }
 
 def bert_cls_collate_fn(batch):
-    """
-    动态padding， batch为一部分sample
-    """
 
     token_ids = [data["input_ids"] for data in batch]
     max_length = max([len(t) for t in token_ids])
@@ -67,9 +78,6 @@ def bert_cls_collate_fn(batch):
     }
 
 def bert_sequence_label_collate_fn(batch):
-    """
-    动态padding， batch为一部分sample
-    """
 
     token_ids = [data["input_ids"] for data in batch]
     
@@ -87,12 +95,9 @@ def bert_sequence_label_collate_fn(batch):
     }
 
 def bert_sequence_label_gp_collate_fn(batch):
-    """
-    动态padding， batch为一部分sample
-    """
+   
     def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
-        """Numpy函数，将序列padding到同一长度
-        """
+       
         if length is None:
             length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
         elif not hasattr(length, '__getitem__'):

@@ -13,11 +13,8 @@ class BertEmbedding(BasicBert):
 
         input_ids = data["input_ids"]
         token_type_ids = data.get("token_type_ids", None)
-        input_tensor = input_ids.to(self.device)
-        if token_type_ids is not None:
-            token_type_ids = token_type_ids.to(self.device)
 
-        all_layers, _ = self.bert(input_tensor, token_type_ids=token_type_ids,
+        all_layers, _ = self.bert(input_ids, token_type_ids=token_type_ids,
                                     output_all_encoded_layers=True)
         sequence_out = all_layers[-1]
         tokens_hidden_state = self.cls.predictions.transform(sequence_out)

@@ -14,6 +14,7 @@ class GPT2(BasicGPT):
         else :
             self.config = None
         self.model = GPT2LMHeadModel(self.config)
+        print(f"model is {model_name}")
 
     def _make_causal_mask(self, input_ids):
         device = input_ids.device

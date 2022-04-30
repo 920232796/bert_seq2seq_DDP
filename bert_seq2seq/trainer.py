@@ -170,7 +170,8 @@ class Trainer:
                 with torch.no_grad():
                     self.model.eval()
                     if self.validation_func is not None:
-                        self.validation_func()
+                        if self.local_rank == 0:
+                            self.validation_func()
                         metric = 0.0
                         val_loss = 0.0
                     else :
