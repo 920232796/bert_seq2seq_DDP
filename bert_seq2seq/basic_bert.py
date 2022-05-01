@@ -71,8 +71,13 @@ class BasicBert(nn.Module):
     def load_all_params(self, model_path, device="cuda"):
 
         checkpoint = torch.load(model_path, map_location=device)
-        self.load_state_dict(checkpoint, strict=False)
-        torch.cuda.empty_cache()
+        checkpoint_load = {}
+        for k, v in checkpoint.items():
+            if k[:7] == "module.":
+                checkpoint_load[k[7:]] = v 
+            else :
+                checkpoint_load[k] = v
+        self.load_state_dict(checkpoint_load, strict=True)
         print(str(model_path) + " loaded!")
 
     def forward(self, input_text):
@@ -105,9 +110,17 @@ class BasicGPT(nn.Module):
         print("{} loaded!".format(pretrain_model_path))
 
     def load_all_params(self, model_path, device="cuda"):
+        
         checkpoint = torch.load(model_path, map_location=device)
-        self.load_state_dict(checkpoint, strict=False)
-        torch.cuda.empty_cache()
+
+        checkpoint_load = {}
+        for k, v in checkpoint.items():
+            if k[:7] == "module.":
+                checkpoint_load[k[7:]] = v 
+            else :
+                checkpoint_load[k] = v
+
+        self.load_state_dict(checkpoint_load, strict=True)
         print(str(model_path) + " loaded!")
 
     def forward(self, x):
@@ -136,7 +149,13 @@ class BasicT5(nn.Module):
 
     def load_all_params(self, model_path, device="cuda"):
         checkpoint = torch.load(model_path, map_location=device)
-        self.load_state_dict(checkpoint, strict=False)
+        checkpoint_load = {}
+        for k, v in checkpoint.items():
+            if k[:7] == "module.":
+                checkpoint_load[k[7:]] = v 
+            else :
+                checkpoint_load[k] = v
+        self.load_state_dict(checkpoint_load, strict=False)
         torch.cuda.empty_cache()
         print(str(model_path) + " loaded!")
 
