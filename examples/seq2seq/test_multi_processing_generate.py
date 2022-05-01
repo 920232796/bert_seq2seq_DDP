@@ -41,7 +41,6 @@ def read_file():
 
 test_data = read_file()
 print(f"data len is {len(test_data)}")
-# test_data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 def generate_multiprocess(data):
     print(f"data is {data}")
@@ -64,9 +63,4 @@ if __name__ == "__main__":
     p.map_async(generate_multiprocess, test_data, chunksize=3)
     p.close()
     p.join()
-    # print(len(result))
-    # print(len(res))
-    # for d in res:
-        # with open(os.path.join("./gene", f"{d}.txt"), "w+") as f :
-        # fwrite(out)
-    print('Waiting for all subprocesses done...')
+    print('done.')
