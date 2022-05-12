@@ -36,10 +36,11 @@ trainer = Trainer(env_type="DDP",## DDP为pytorch的分布式数据并行训练
 ### 项目特点二:
 虽然使用Trainer类进行了封装，也能做到比较灵活的evaluation.
 
-#### 自定义Evaluator类，可以自由进行验证（
+#### 自定义Evaluator类，可以自由进行验证
 
-[train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title.py) 自动标题任务，自定义validate函数。
-[train_roberta_semantic_matching.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_semantic_matching.py) 语义匹配任务，自定义compute_metric函数。
+[train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title.py) 自动标题任务，在训练过程中很方便打印下生成内容。
+
+[train_roberta_semantic_matching.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_semantic_matching.py) 语义匹配任务，在训练过程中轻松插入验证过程。
 
 ### 项目特点三:
 提供样例数据在data目录中，帮助理解代码运行过程，供参考（qq群文件里提供部分任务的全部数据）。
