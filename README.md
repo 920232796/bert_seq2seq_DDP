@@ -66,13 +66,15 @@ pip install scikit-learn //可选
 
 #### 参数说明，以文本分类任务为例
 ```python
+import torch 
+from bert_seq2seq import Tokenizer, Predictor, load_model, Trainer
 target = ["财经", "彩票", "房产", "股票", "家居", "教育", "科技", "社会", "时尚", "时政", "体育", "星座", "游戏", "娱乐"] # 所有labels
 train_path = "../data/新闻标题文本分类/Train.txt" # 数据存放位置
 model_name = "roberta" # 选择模型名字
 task_name = "cls" # 任务名字
 vocab_path = "../state_dict/roberta-large/vocab.txt" # roberta模型字典的位置
 model_path = "../state_dict/roberta-large/pytorch_model.bin" # roberta模型位置
-model_save_dir = "./state_dict/roberta_large_news_title_classification/" ## 训练结果和模型的保存位置
+model_save_path = "./bert_news_title_classification.bin" ## 训练好的模型保存位置
 batch_size = 16
 lr = 1e-5
 # 加载字典
@@ -87,11 +89,10 @@ bert_model = load_model(tokenizer.vocab,
 ## 加载预训练的模型参数～
 bert_model.load_pretrain_params(model_path)
 # trainer设置
-trainer = Trainer(epoches=3, val_every_step=500,  # 每500步进行验证和模型保存
+trainer = Trainer(epoches=3, val_every_step=500,  # 每500步进行验证
                   batch_size=batch_size, 
                   env_type="pytorch", # 单卡训练方式
                   device=device, 
-                  model_save_dir=model_save_dir, # 结果和模型的保存位置。
                   )
 ```
 #### 运行
