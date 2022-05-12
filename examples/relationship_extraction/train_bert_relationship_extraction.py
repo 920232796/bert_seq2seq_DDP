@@ -23,7 +23,7 @@ val_path = os.path.join(data_dir, "dev_data.json")
 batch_size = 8
 maxlen = 128
 lr = 1e-5
-device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 trainer = Trainer(epoches=epoches, env_type="pytorch",
                   val_every_step=1000, batch_size=batch_size,
                   device=device,

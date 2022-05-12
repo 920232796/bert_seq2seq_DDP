@@ -80,15 +80,17 @@ class Evaluator:
 
     def on_validation(self):
         ## 自己定义validate函数实现，十分灵活。
-        test_data = ["A:今天天气很好，你觉得呢？",
-                     "A:我去吃了火锅。"]
+        test_data = [["A:今天天气很好，你觉得呢？"],
+                     ["A:我去吃了火锅。"],
+                     ["A:我去吃了火锅。", "B:我也是，真不错，你吃的哪家？"]
+                     ]
         for text in test_data:
-            print(predictor.predict_generate_randomsample(text,
-                                                          input_max_length=200,
-                                                          out_max_length=40,
-                                                          top_k=30, top_p=0.9,
-                                                          repetition_penalty=1.2,
-                                                          temperature=1.2, add_sep=True))
+            print(predictor.predict_multi_response(text,
+                                                  input_max_length=200,
+                                                  out_max_length=40,
+                                                  top_k=30, top_p=0.9,
+                                                  repetition_penalty=1.2,
+                                                  temperature=1.2))
 
         torch.save(model, model_save_path)
         print(f"模型保存成功～")

@@ -150,27 +150,26 @@ class Predictor:
             os._exit(0)
     
     def predict_multi_response(self, sentences: List[str], top_k, top_p, 
-                                repetition_penalty, temperature, maxlen=1024, ):
+                                repetition_penalty, temperature, input_max_length=1024,
+                               out_max_length=100):
         pass 
         
         length = sum([len(text) for text in sentences])
-        if length > maxlen:
+        if length > input_max_length:
             print(f"对话过长: {length}")
             os._exit(0)
         device = next(self.model.parameters()).device
         input_ids = [self.tokenizer.token_start_id]
         for index, text in enumerate(sentences):
             if (index + 1) % 2 == 1:
-                text = "A:" + text
+                input_ids += self.tokenizer.encode_plus("A:" + text, max_length=input_max_length)["input_ids"][1:]
             else :
-                text =  "B:" + text
-
-            text_ids = self.tokenizer.encode_plus(text, max_length=maxlen)["input_ids"][1:]
-            input_ids.extend(text_ids)
+                input_ids +=  self.tokenizer.encode_plus("B:" + text, max_length=input_max_length)["input_ids"][1:]
 
         if "gpt" in self.class_name.lower():
             return gpt_random_sample_from_ids(self.model, self.tokenizer, input_ids,
-                                     100, top_k, top_p, repetition_penalty, temperature, device)
+                                                out_max_length, top_k, top_p, repetition_penalty,
+                                                temperature, device)
         
         else :
             print(f"暂不支持的解码方式: {self.class_name}")
