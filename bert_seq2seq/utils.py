@@ -2,7 +2,7 @@ import torch
 from bert_seq2seq.task.seq2seq.bert_seq2seq_model import BertSeq2SeqModel
 import os
 from bert_seq2seq.task.embedding.bert_embedding import BertEmbedding
-from bert_seq2seq.task.cls.bert_cls_classifier import BertClsClassifier
+from bert_seq2seq.task.classification.bert_cls_classifier import BertClsClassifier
 from bert_seq2seq.task.sequence_labeling.bert_sequence_labeling import BertNERGP, BertNERCRF
 from bert_seq2seq.task.seq2seq.gpt2_seq2seq_model import GPT2
 from bert_seq2seq.task.seq2seq.t5_seq2seq_model import T5Model
@@ -12,9 +12,9 @@ ALL_TASK = {
     "bert_seq2seq": BertSeq2SeqModel,
     "roberta_seq2seq": BertSeq2SeqModel,
     "roberta-large_seq2seq": BertSeq2SeqModel,
-    "bert_cls": BertClsClassifier,
-    "roberta_cls": BertClsClassifier,
-    "roberta-large_cls": BertClsClassifier,
+    "bert_classification": BertClsClassifier,
+    "roberta_classification": BertClsClassifier,
+    "roberta-large_classification": BertClsClassifier,
     "bert_sequence_labeling_gp": BertNERGP,
     "roberta_sequence_labeling_gp": BertNERGP,
     "roberta-large_sequence_labeling_gp": BertNERGP,

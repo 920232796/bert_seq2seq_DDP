@@ -13,7 +13,7 @@ from tqdm import tqdm
 target = ["财经", "彩票", "房产", "股票", "家居", "教育", "科技", "社会", "时尚", "时政", "体育", "星座", "游戏", "娱乐"]
 train_path = "../data/新闻标题文本分类/Train.txt"
 model_name = "roberta" # 选择模型名字
-task_name = "cls"
+task_name = "classification"
 vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
 model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 model_save_path = "./bert_news_title_classification.bin"

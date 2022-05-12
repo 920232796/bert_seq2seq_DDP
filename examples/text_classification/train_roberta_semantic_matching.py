@@ -13,7 +13,7 @@ import os
 target = [0, 1]
 train_path = "../data/语义匹配/train.tsv"
 model_name = "roberta" # 选择模型名字
-task_name = "cls"
+task_name = "classification"
 vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
 model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 model_save_path = "./bert_semantic_matching.bin"
