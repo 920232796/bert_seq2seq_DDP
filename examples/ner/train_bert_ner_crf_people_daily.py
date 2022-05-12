@@ -15,8 +15,8 @@ test_path = '../data/china-people-daily-ner-corpus/example.test'
 model_name = "bert" # 选择模型名字
 task_name = "sequence_labeling_crf"
 
-vocab_path = "../state_dict/bert-base-chinese/vocab.txt" # roberta模型字典的位置
-model_path = "../state_dict/bert-base-chinese/pytorch_model.bin" # roberta模型位置
+vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
+model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 
 model_save_path = "./bert_sequence_labeling_crf.bin"
 
@@ -35,7 +35,8 @@ trainer = Trainer(epoches=10,
                   device=device,
                   )
 
-target = set()
+target = ["O", "B-LOC", "I-LOC", "B-ORG", "I-ORG", "B-PER", "I-PER"]
+
 def load_data(filename):
     """加载数据
     单条格式：[text, (start, end, label), (start, end, label), ...]，
@@ -53,10 +54,8 @@ def load_data(filename):
                 d[0] += char
                 if flag[0] == 'B':
                     d.append([i, i, flag[2:]])
-                    target.add(flag[2:])
                 elif flag[0] == 'I':
                     d[-1][1] = i
-            # d[0] = d[0].replace("“", "'").replace("”", "'")
 
             D.append(d)
     return D
@@ -64,11 +63,11 @@ def load_data(filename):
 train_data = load_data(train_path)
 val_data = load_data(valid_path)
 test_data = load_data(test_path)
-target = list(sorted(target))
+
 print(f"all target is {target}")
 
 bert_model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name,
-                        target_size=len(target) * 2 + 1)
+                        target_size=len(target))
 bert_model.load_pretrain_params(model_path, strict=False)
 
 predictor = Predictor(bert_model, tokenizer)
@@ -90,7 +89,6 @@ class NERDataset(Dataset):
 
         tokens = tokenizer.tokenize(data[0], maxlen=maxlen, add_spatial_tokens=True)
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
-        # input_ids = tokenizer.tokens_to_ids(tokens)
 
         mapping = tokenizer.rematch(data[0], tokens)
         start_mapping = {j[0]: i for i, j in enumerate(mapping) if j}
@@ -104,9 +102,9 @@ class NERDataset(Dataset):
                 start = start_mapping[start]
                 end = end_mapping[end]
 
-                labels[start] = target.index(label) * 2 + 1
-                for j in range(start+1, end+1):
-                    labels[j] = target.index(label) * 2 + 2
+                labels[start] = target.index(f"B-{label}")
+                for j in range(start + 1, end + 1):
+                    labels[j] = target.index(f"I-{label}")
 
         output = {
             "input_ids": input_ids,
@@ -168,8 +166,6 @@ class Evaluator:
             'test:  f1: %.5f, precision: %.5f, recall: %.5f\n' %
             (f1, precision, recall)
         )
-
-
 
 def main():
 
