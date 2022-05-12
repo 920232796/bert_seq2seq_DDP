@@ -49,9 +49,8 @@ class Predictor:
             input_ids = input_ids.view(1, -1)
             token_type_ids = token_type_ids.view(1, -1)
         with torch.no_grad():
-            score = self.model(**{"input_ids": input_ids, "token_type_ids": token_type_ids})["logits"].cpu()
-        score = score.argmax(dim=-1)
-        return score.item()
+            score = self.model(**{"input_ids": input_ids, "token_type_ids": token_type_ids})["logits"].cpu()[0]
+        return score
 
     def predict_masklm(self, text, max_len=512):
         device = next(self.model.parameters()).device

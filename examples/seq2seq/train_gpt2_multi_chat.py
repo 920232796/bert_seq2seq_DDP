@@ -14,7 +14,7 @@ task_name = "seq2seq" # 任务名字
 
 model_path = "../state_dict/gpt2/pytorch_model.bin"
 vocab_path = "../state_dict/gpt2/vocab.txt"
-model_save_dir = "./state_dict/gpt2_multi_chat_model/" # 训练好的模型保存位置。
+model_save_path = "./gpt2_multi_chat_model.bin" # 训练好的模型保存位置。
 lr = 2e-5
 maxlen = 1024
 data_path = '../data/LCCC-base-split/LCCC-base_train.json' # 数据位置
@@ -27,8 +27,7 @@ predictor = Predictor(model, tokenizer)
 
 trainer = Trainer(env_type="pytorch", 
                   epoches=5,
-                  model_save_dir=model_save_dir,
-                  val_every_step=500, 
+                  val_every_step=500,
                   device=device, 
                   batch_size=8,
                   gradient_accmulation_step=8)
@@ -77,17 +76,22 @@ class ChatDataset(Dataset):
 
         return len(self.data)
 
-def validate():
-    ## 自己定义validate函数实现，十分灵活。
-    test_data = ["A:今天天气很好，你觉得呢？",
-                "A:我去吃了火锅。"]
-    for text in test_data:
-        print(predictor.predict_generate_randomsample(text,
-                                                    input_max_length=200, 
-                                                    out_max_length=40,
-                                                    top_k=30, top_p=0.9, 
-                                                    repetition_penalty=1.2,
-                                                    temperature=1.2, add_sep=True))
+class Evaluator:
+
+    def on_validation(self):
+        ## 自己定义validate函数实现，十分灵活。
+        test_data = ["A:今天天气很好，你觉得呢？",
+                     "A:我去吃了火锅。"]
+        for text in test_data:
+            print(predictor.predict_generate_randomsample(text,
+                                                          input_max_length=200,
+                                                          out_max_length=40,
+                                                          top_k=30, top_p=0.9,
+                                                          repetition_penalty=1.2,
+                                                          temperature=1.2, add_sep=True))
+
+        torch.save(model, model_save_path)
+        print(f"模型保存成功～")
 
 def main():
     ## 加载数据
@@ -96,8 +100,8 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-3)
     train_dataset = ChatDataset(data)
 
-    trainer.train(model, optimizer, train_dataset=train_dataset, validation_func=validate,
-                  val_dataset=None, compute_metric_func=None, collate_fn=gpt_collate_fn)
+    trainer.train(model, optimizer, train_dataset=train_dataset, evaluator=Evaluator,
+                  collate_fn=gpt_collate_fn)
 
 if __name__ == '__main__':
     main()

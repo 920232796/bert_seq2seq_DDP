@@ -10,12 +10,10 @@ from bert_seq2seq import load_model
 from bert_seq2seq import Predictor
 
 vocab_path = "../state_dict/gpt2/vocab.txt"
-model_save_dir = "./state_dict/gpt2_writing_model_2/" # 训练好的模型保存位置。
-model_path = os.path.join(model_save_dir, "final_model.bin")
+model_save_path = "./gpt2_writing_model.bin" # 训练好的模型保存位置。
 
 model_name = "gpt2"  # 选择模型名字
 task_name = "seq2seq" # 任务名字
-
 
 data_path = "../data/xzwaz2kx4cu.csv"
 
@@ -23,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 tokenizer = Tokenizer(vocab_path)
 model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name)
-model.load_all_params(model_path)
+model.load_all_params(model_save_path)
 model.to(device)
 
 predictor = Predictor(model, tokenizer)

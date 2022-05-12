@@ -10,6 +10,32 @@ def padding(indice, max_length, pad_idx=0):
     pad_indice = [item + [pad_idx] * max(0, max_length - len(item)) for item in indice]
     return torch.tensor(pad_indice)
 
+def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
+       
+        if length is None:
+            length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
+        elif not hasattr(length, '__getitem__'):
+            length = [length]
+
+        slices = [np.s_[:length[i]] for i in range(seq_dims)]
+        slices = tuple(slices) if len(slices) > 1 else slices[0]
+        pad_width = [(0, 0) for _ in np.shape(inputs[0])]
+
+        outputs = []
+        for x in inputs:
+            x = x[slices]
+            for i in range(seq_dims):
+                if mode == 'post':
+                    pad_width[i] = (0, length[i] - np.shape(x)[i])
+                elif mode == 'pre':
+                    pad_width[i] = (length[i] - np.shape(x)[i], 0)
+                else:
+                    raise ValueError('"mode" argument must be "post" or "pre".')
+            x = np.pad(x, pad_width, 'constant', constant_values=value)
+            outputs.append(x)
+
+        return np.array(outputs)
+
 def gpt_collate_fn(batch):
 
     token_ids = [data["input_ids"] for data in batch]
@@ -95,32 +121,7 @@ def bert_sequence_label_collate_fn(batch):
     }
 
 def bert_sequence_label_gp_collate_fn(batch):
-   
-    def sequence_padding(inputs, length=None, value=0, seq_dims=1, mode='post'):
-       
-        if length is None:
-            length = np.max([np.shape(x)[:seq_dims] for x in inputs], axis=0)
-        elif not hasattr(length, '__getitem__'):
-            length = [length]
 
-        slices = [np.s_[:length[i]] for i in range(seq_dims)]
-        slices = tuple(slices) if len(slices) > 1 else slices[0]
-        pad_width = [(0, 0) for _ in np.shape(inputs[0])]
-
-        outputs = []
-        for x in inputs:
-            x = x[slices]
-            for i in range(seq_dims):
-                if mode == 'post':
-                    pad_width[i] = (0, length[i] - np.shape(x)[i])
-                elif mode == 'pre':
-                    pad_width[i] = (length[i] - np.shape(x)[i], 0)
-                else:
-                    raise ValueError('"mode" argument must be "post" or "pre".')
-            x = np.pad(x, pad_width, 'constant', constant_values=value)
-            outputs.append(x)
-
-        return np.array(outputs)
     token_ids = [data["input_ids"] for data in batch]
     labels = [data["labels"] for data in batch]
     token_ids_padded = sequence_padding(token_ids)
@@ -134,31 +135,29 @@ def bert_sequence_label_gp_collate_fn(batch):
         "labels": labels_padded
     }
 
-ALL_COLLATE = {
-    "gpt2": gpt_collate_fn,
-    "bert_seq2seq": bert_seq2seq_collate_fn,
-    "bert_cls": bert_cls_collate_fn,
-    "bert_sequence_labling": bert_sequence_label_collate_fn,
-    "sequence_labeling_crf": bert_sequence_label_collate_fn,
-    "bert_multilabel_cls": bert_cls_collate_fn,
+def bert_gplinker_collate_fn(batch):
+    input_ids = [data["input_ids"] for data in batch]
+    token_type_ids = [data["token_type_ids"] for data in batch]
+    entity_labels = [data["entity_labels"] for data in batch]
+    head_labels = [data["head_labels"] for data in batch]
+    tail_labels = [data["tail_labels"] for data in batch]
 
-}
+    input_ids = sequence_padding(input_ids)
+    token_type_ids = sequence_padding(token_type_ids)
+    entity_labels = sequence_padding(entity_labels, seq_dims=2)
+    head_labels = sequence_padding(head_labels, seq_dims=2)
+    tail_labels = sequence_padding(tail_labels, seq_dims=2)
 
-class AbstractDataset(Dataset):
-
-    def __init__(self, model_name, model_class) -> None:
-        super().__init__()
-
-
-        self.collate_fn = ALL_COLLATE.get(f"{model_name}_{model_class}", None)
-        if self.collate_fn is None:
-            import os
-            print("illegal model_name or model_class")
-            os._exit(0)
-
+    input_ids = torch.from_numpy(input_ids).long()
+    token_type_ids = torch.from_numpy(token_type_ids).long()
+    entity_labels = torch.from_numpy(entity_labels).long()
+    head_labels = torch.from_numpy(head_labels).long()
+    tail_labels = torch.from_numpy(tail_labels).long()
     
-    def __getitem__(self, index):
-        return NotImplemented
-    
-    def __len__(self):
-        return NotImplemented
+    return {
+        "input_ids": input_ids,
+        "token_type_ids": token_type_ids,
+        "entity_labels": entity_labels,
+        "head_labels": head_labels,
+        "tail_labels": tail_labels
+    }

@@ -4,15 +4,9 @@ import os
 from bert_seq2seq.task.embedding.bert_embedding import BertEmbedding
 from bert_seq2seq.task.cls.bert_cls_classifier import BertClsClassifier
 from bert_seq2seq.task.sequence_labeling.bert_sequence_labeling import BertNERGP, BertNERCRF
-# from bert_seq2seq.bert_relation_extraction import BertRelationExtrac
-# from bert_seq2seq.bert_cls_multi_classifier import BertClsMultiClassifier
-# import torch.nn.functional as F
-# from bert_seq2seq.bert_cls_multi_seq2seq import ClsMultiSeq2SeqModel
-# from bert_seq2seq.simbert_model import SimBertModel
-# from bert_seq2seq.gpt2_generate_model import GPT2
-# from bert_seq2seq.basic_bert import BasicBert
 from bert_seq2seq.task.seq2seq.gpt2_seq2seq_model import GPT2
 from bert_seq2seq.task.seq2seq.t5_seq2seq_model import T5Model
+from bert_seq2seq.task.relationship_extraction.bert_relationship_extraction import BertRelationshipExtraction
 
 ALL_TASK = {
     "bert_seq2seq": BertSeq2SeqModel,
@@ -32,6 +26,10 @@ ALL_TASK = {
     "roberta-large_embedding": BertEmbedding,
     "gpt2_seq2seq": GPT2,
     "t5_seq2seq": T5Model,
+    "bert_relationship_extraction":BertRelationshipExtraction,
+    "roberta_relationship_extraction":BertRelationshipExtraction,
+    "nezha_relationship_extraction":BertRelationshipExtraction,
+
 }
 
 def load_model(vocab, model_name="roberta", task_name="seq2seq", target_size=0, ner_inner_dim=-1, size="base"):

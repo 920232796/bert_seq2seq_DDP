@@ -1,15 +1,16 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np 
 
 class GlobalPointer(nn.Module):
-    def __init__(self, hidden_size, ent_type_size, inner_dim, RoPE=True):
+    def __init__(self, hidden_size, ent_type_size, inner_dim, RoPE=True, trill_mask=True):
         super().__init__()
         self.ent_type_size = ent_type_size
         self.inner_dim = inner_dim
         self.hidden_size = hidden_size
         self.dense = nn.Linear(self.hidden_size, self.ent_type_size * self.inner_dim * 2)
-
+        self.trill_mask = trill_mask
         self.RoPE = RoPE
 
     def sinusoidal_position_embedding(self, batch_size, seq_len, output_dim):
@@ -40,14 +41,6 @@ class GlobalPointer(nn.Module):
 
     def forward(self, last_hidden_state, padding_mask):
         self.device = last_hidden_state.device
-        #
-        # if attention_mask is None :
-        #     attention_mask = (input_ids > 0).float32().to(self.device)
-        # attention_mask = (input_ids > 0).float32().to(self.device)
-        # context_outputs = self.language_model(input_ids, attention_mask, token_type_ids)
-        # last_hidden_state:(batch_size, seq_len, hidden_size)
-        # last_hidden_state = context_outputs[0]
-
         batch_size = last_hidden_state.size()[0]
         seq_len = last_hidden_state.size()[1]
 
@@ -60,7 +53,6 @@ class GlobalPointer(nn.Module):
         qw, kw = outputs[...,:self.inner_dim], outputs[...,self.inner_dim:] # TODO:修改为Linear获取？
 
         if self.RoPE:
-
             qw, kw = self.rope(batch_size, seq_len, self.inner_dim, qw, kw)
 
         # logits:(batch_size, ent_type_size, seq_len, seq_len)
@@ -73,8 +65,9 @@ class GlobalPointer(nn.Module):
         logits = logits*pad_mask - (1-pad_mask)*1e12
 
         # 排除下三角
-        mask = torch.tril(torch.ones_like(logits), -1)
-        logits = logits - mask * 1e12
+        if self.trill_mask:
+            mask = torch.tril(torch.ones_like(logits), -1)
+            logits = logits - mask * 1e12
 
         return logits/self.inner_dim**0.5
 
@@ -87,6 +80,10 @@ class GlobalPointer(nn.Module):
         labels = torch.reshape(labels, shape=(bh, -1))
         logits = torch.reshape(logits, shape=(bh, -1))
         return multilabel_crossentropy(logits, labels)
+
+    def compute_loss_sparse(self, logits, labels, mask_zero=False):
+        return sparse_multilabel_categorical_crossentropy(y_pred=logits, y_true=labels, mask_zero=mask_zero)
+
 
 def multilabel_crossentropy(y_pred, y_true):
     """
@@ -102,6 +99,31 @@ def multilabel_crossentropy(y_pred, y_true):
     pos_loss = torch.logsumexp(y_pred_pos, dim=-1)
 
     return (neg_loss + pos_loss).mean()
+
+def sparse_multilabel_categorical_crossentropy(y_true=None, y_pred=None, mask_zero=False):
+    '''
+    稀疏多标签交叉熵损失的torch实现
+    '''
+    shape = y_pred.shape
+    y_true = y_true[..., 0] * shape[2] + y_true[..., 1]
+    y_pred = y_pred.reshape(shape[0], -1, np.prod(shape[2:]))
+    zeros = torch.zeros_like(y_pred[...,:1])
+    y_pred = torch.cat([y_pred, zeros], dim=-1)
+    if mask_zero:
+        infs = zeros + 1e12
+        y_pred = torch.cat([infs, y_pred[..., 1:]], dim=-1)
+    y_pos_2 = torch.gather(y_pred, index=y_true, dim=-1)
+    y_pos_1 = torch.cat([y_pos_2, zeros], dim=-1)
+    if mask_zero:
+        y_pred = torch.cat([-infs, y_pred[..., 1:]], dim=-1)
+        y_pos_2 = torch.gather(y_pred, index=y_true, dim=-1)
+    pos_loss = torch.logsumexp(-y_pos_1, dim=-1)
+    all_loss = torch.logsumexp(y_pred, dim=-1)
+    aux_loss = torch.logsumexp(y_pos_2, dim=-1) - all_loss
+    aux_loss = torch.clip(1 - torch.exp(aux_loss), 1e-10, 1)
+    neg_loss = all_loss + torch.log(aux_loss)
+    loss = torch.mean(torch.sum(pos_loss + neg_loss))
+    return loss
 
 class CRFLayer(nn.Module):
     """

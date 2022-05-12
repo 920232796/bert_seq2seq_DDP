@@ -20,6 +20,13 @@ class BertClsClassifier(BasicBert):
         labels = labels.view(-1)
         loss = nn.CrossEntropyLoss(reduction="mean")
         return loss(predictions, labels)
+
+    def compute_loss_sigmoid(self, predictions, labels):
+        predictions = predictions.view(-1)
+        labels = labels.view(-1).float()
+
+        loss_sigmoid = nn.BCEWithLogitsLoss()
+        return loss_sigmoid(predictions, labels)
     
     def forward(self, **data):
 
@@ -34,7 +41,10 @@ class BertClsClassifier(BasicBert):
         return_data = {"logits": predictions, }
         if labels is not None:
             ## 计算loss
-            loss = self.compute_loss(predictions, labels)
+            if self.target_size == 1:
+                loss = self.compute_loss_sigmoid(predictions, labels)
+            else :
+                loss = self.compute_loss(predictions, labels)
             return_data["loss"] = loss
 
         return return_data

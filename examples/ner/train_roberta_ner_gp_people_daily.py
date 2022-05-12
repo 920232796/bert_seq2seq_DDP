@@ -20,7 +20,7 @@ task_name = "sequence_labeling_gp"
 vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
 model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 
-model_save_dir = "./state_dict/bert_sequence_labeling_gp/"
+model_save_path = "./bert_sequence_labeling_gp.bin"
 
 batch_size = 16
 lr = 2e-5
@@ -29,9 +29,11 @@ tokenizer = Tokenizer(vocab_path)
 maxlen = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-trainer = Trainer(epoches=10, env_type="pytorch",
-                  val_every_step=500, batch_size=batch_size,
-                  device=device, model_save_dir=model_save_dir,
+trainer = Trainer(epoches=10,
+                  env_type="pytorch",
+                  val_every_step=500,
+                  batch_size=batch_size,
+                  device=device,
                   )
 target = set()
 
@@ -125,46 +127,52 @@ def evaluate(data):
     f1, precision, recall = 2 * X / (Y + Z), X / Y, X / Z
     return f1, precision, recall
 
-def validate():
-    predictor.best_val_f1 = 0.0
-    text = ["6月15日，河南省文物考古研究所曹操高陵文物队公开发表声明承认：“从来没有说过出土的珠子是墓主人的",
-            "4月8日，北京冬奥会、冬残奥会总结表彰大会在人民大会堂隆重举行。习近平总书记出席大会并发表重要讲话。在讲话中，总书记充分肯定了北京冬奥会、冬残奥会取得的优异成绩，全面回顾了7年筹办备赛的不凡历程，深入总结了筹备举办北京冬奥会、冬残奥会的宝贵经验，深刻阐释了北京冬奥精神，对运用好冬奥遗产推动高质量发展提出明确要求。",
-            "当地时间8日，欧盟委员会表示，欧盟各成员国政府现已冻结共计约300亿欧元与俄罗斯寡头及其他被制裁的俄方人员有关的资产。",
-            "这一盘口状态下英国必发公司亚洲盘交易数据显示博洛尼亚热。而从欧赔投注看，也是主队热。巴勒莫两连败，",
-            ]
-    for t in text:
-        entities = predictor.predict_ner(t, target, maxlen=maxlen)
-        result = {}
-        for e in entities:
-            if e[2] not in result:
-                result[e[2]] = [t[e[0]: e[1]+1]]
-            else :
-                result[e[2]].append(t[e[0]: e[1]+1])
-        print(f"result is {result}")
+class Evaluator:
 
-    f1, precision, recall = evaluate(val_data)
-    # 保存最优
-    if f1 >= predictor.best_val_f1:
-        predictor.best_val_f1 = f1
-        torch.save(predictor.model.state_dict(), os.path.join(model_save_dir, "best_model.bin"))
-        print(f"best model is saved at {os.path.join(model_save_dir, 'best_model.bin')}")
-    print(
-        'valid:  f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' %
-        (f1, precision, recall, predictor.best_val_f1)
-    )
+    def __init__(self):
+        self.best_val_f1 = 0.0
 
-    f1, precision, recall = evaluate(test_data)
-    print(
-        'test:  f1: %.5f, precision: %.5f, recall: %.5f\n' %
-        (f1, precision, recall)
-    )
+    def on_validation(self):
+
+        text = ["6月15日，河南省文物考古研究所曹操高陵文物队公开发表声明承认：“从来没有说过出土的珠子是墓主人的",
+                "4月8日，北京冬奥会、冬残奥会总结表彰大会在人民大会堂隆重举行。习近平总书记出席大会并发表重要讲话。在讲话中，总书记充分肯定了北京冬奥会、冬残奥会取得的优异成绩，全面回顾了7年筹办备赛的不凡历程，深入总结了筹备举办北京冬奥会、冬残奥会的宝贵经验，深刻阐释了北京冬奥精神，对运用好冬奥遗产推动高质量发展提出明确要求。",
+                "当地时间8日，欧盟委员会表示，欧盟各成员国政府现已冻结共计约300亿欧元与俄罗斯寡头及其他被制裁的俄方人员有关的资产。",
+                "这一盘口状态下英国必发公司亚洲盘交易数据显示博洛尼亚热。而从欧赔投注看，也是主队热。巴勒莫两连败，",
+                ]
+        for t in text:
+            entities = predictor.predict_ner(t, target, maxlen=maxlen)
+            result = {}
+            for e in entities:
+                if e[2] not in result:
+                    result[e[2]] = [t[e[0]: e[1]+1]]
+                else :
+                    result[e[2]].append(t[e[0]: e[1]+1])
+            print(f"result is {result}")
+
+        f1, precision, recall = evaluate(val_data)
+        # 保存最优
+        if f1 >= self.best_val_f1:
+            self.best_val_f1 = f1
+            torch.save(bert_model, model_save_path)
+            print(f"模型保存成功～")
+
+        print(
+            'valid:  f1: %.5f, precision: %.5f, recall: %.5f, best f1: %.5f\n' %
+            (f1, precision, recall, self.best_val_f1)
+        )
+
+        f1, precision, recall = evaluate(test_data)
+        print(
+            'test:  f1: %.5f, precision: %.5f, recall: %.5f\n' %
+            (f1, precision, recall)
+        )
 
 
 def main():
 
     optimizer = torch.optim.Adam(bert_model.parameters(), lr=lr, weight_decay=1e-5)
     train_dataset = NERDataset(train_data)
-    trainer.train(model=bert_model, optimizer=optimizer, validation_func=validate,
+    trainer.train(model=bert_model, optimizer=optimizer, evaluator=Evaluator,
                   train_dataset=train_dataset, collate_fn=bert_sequence_label_gp_collate_fn,
                   )
 

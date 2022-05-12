@@ -5,14 +5,14 @@ from bert_seq2seq import Predictor
 import os 
 
 vocab_path = "../state_dict/gpt2/vocab.txt"
-model_save_dir = "./state_dict/gpt2_multi_chat_model/" # 训练好的模型保存位置。
+model_save_path = "./gpt2_multi_chat_model.bin" # 训练好的模型保存位置。
 
 tokenizer = Tokenizer(vocab_path)
 
 model = load_model(tokenizer.vocab,
                    model_name="gpt2",
                    task_name="seq2seq")
-model.load_all_params(os.path.join(model_save_dir, "final_model.bin"))
+model.load_all_params(model_save_path)
 predictor = Predictor(model, tokenizer)
 
 if __name__ == '__main__':

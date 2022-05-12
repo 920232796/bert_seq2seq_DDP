@@ -5,30 +5,34 @@ from bert_seq2seq import load_model
 from bert_seq2seq.dataset import bert_cls_collate_fn
 from bert_seq2seq.trainer import Trainer
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score, precision_score, recall_score, accuracy_score
+from bert_seq2seq import Predictor
+import os
 
 target = ["财经", "彩票", "房产", "股票", "家居", "教育", "科技", "社会", "时尚", "时政", "体育", "星座", "游戏", "娱乐"]
 train_path = "../data/新闻标题文本分类/Train.txt"
 model_name = "roberta" # 选择模型名字
-task_name = "cls" # 任务名字
-vocab_path = "../state_dict/roberta-large/vocab.txt" # roberta模型字典的位置
-model_path = "../state_dict/roberta-large/pytorch_model.bin" # roberta模型位置
-model_save_dir = "./state_dict/roberta_large_news_title_classification/" ## 训练结果和模型的保存位置
+task_name = "cls"
+vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
+model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
+model_save_path = "./bert_news_title_classification.bin"
 batch_size = 16
 lr = 1e-5
 # 加载字典
 tokenizer = Tokenizer(vocab_path)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+trainer = Trainer(epoches=3, val_every_step=500, batch_size=16, env_type="pytorch",
+                  device=device,)
+
 bert_model = load_model(tokenizer.vocab,
                         model_name=model_name,
-                        size="large", ## load large model
                         task_name=task_name,
+                        size="large",
                         target_size=len(target))
 ## 加载预训练的模型参数～
 bert_model.load_pretrain_params(model_path)
-
-trainer = Trainer(epoches=3, val_every_step=500, batch_size=16, env_type="pytorch",
-                  device=device, model_save_dir=model_save_dir,)
+predictor = Predictor(bert_model, tokenizer)
 
 def read_corpus():
     """
@@ -45,6 +49,11 @@ def read_corpus():
         sents_src.append(line[2])
 
     return sents_src, sents_tgt
+
+## 加载数据
+all_input, all_label = read_corpus()
+train_input, val_input, train_label, val_label = train_test_split(all_input, all_label, train_size=0.8, random_state=123)
+
 
 ## 自定义dataset
 class ClassificationDataset(Dataset):
@@ -73,25 +82,43 @@ class ClassificationDataset(Dataset):
     def __len__(self):
         return len(self.sents_src)
 
-def compute_metric(logits, labels):
-    logits = logits.argmax(dim=-1)
-    right_num = (logits == labels).sum()
-    acc = right_num / len(logits)
-    return acc
+def validate():
+    res = []
+    for data in val_input:
+        pred = predictor.predict_cls_classifier(data)
+        pred = pred.argmax(dim=1).numpy()
+        res.append(pred)
+
+    f1 = f1_score(val_label, res)
+    accuracy = accuracy_score(val_label, res)
+    recall = recall_score(val_label, res)
+    precision = precision_score(val_label, res)
+
+    print(f" f1 is {f1}, acc is {accuracy}, recall is {recall} precision is {precision}")
+    return accuracy
+
+class Evaluator:
+    def __init__(self):
+        self.best_acc = 0.0
+
+    def on_validation(self):
+        acc = validate()
+        if acc > self.best_acc:
+            self.best_acc = acc
+            torch.save(bert_model, os.path.join(model_save_dir, "best_model.bin"))
+            print(f"模型保存成功～")
+
 
 def main():
-    ## 加载数据
-    all_input, all_label = read_corpus()
-    train_input, val_input, train_label, val_label = train_test_split(all_input, all_label, train_size=0.8, random_state=123)
 
     # 声明需要优化的参数
     optimizer = torch.optim.Adam(bert_model.parameters(), lr=lr, weight_decay=1e-3)
     train_dataset = ClassificationDataset(train_input, train_label)
-    val_dataset = ClassificationDataset(val_input, val_label)
 
     trainer.train(bert_model, optimizer=optimizer,
-                  train_dataset=train_dataset, val_dataset=val_dataset,
-                  compute_metric_func=compute_metric, collate_fn=bert_cls_collate_fn)
+                  train_dataset=train_dataset,
+                  evaluator=Evaluator,
+                  collate_fn=bert_cls_collate_fn)
 
 if __name__ == '__main__':
     main()

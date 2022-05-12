@@ -4,6 +4,7 @@ from tqdm import tqdm
 import os
 import argparse
 from .launch import launch_dist
+from collections import OrderedDict
 
 class Trainer:
 
@@ -12,7 +13,6 @@ class Trainer:
                  val_every_step=100,
                  batch_size=1,
                  device="cpu",
-                 model_save_dir="./",
                  seed=1,
                  gradient_accmulation_step=1,
 
@@ -30,9 +30,7 @@ class Trainer:
         self.device = device
         self.gradient_accmulation_step = gradient_accmulation_step
         self.val_every_step = val_every_step
-        self.model_save_dir = model_save_dir
-        os.makedirs(model_save_dir, exist_ok=True)
-        self.best_metric = 0.0
+        self.best_metric = OrderedDict({"temp": 0.0})
         self.batch_size = batch_size
         self.not_call_launch = True
 
@@ -102,12 +100,12 @@ class Trainer:
         self.master_addr = os.environ.get('MASTER_ADDR','127.0.0.1')
         self.master_port = os.environ.get('MASTER_PORT','17500')
 
-    def get_dataloader(self, dataset, collate_fn, shuffle=False):
+    def get_dataloader(self, dataset, collate_fn, shuffle=False, batch_size=1):
         if dataset is None :
             return None
         if self.env_type == 'pytorch':
             return torch.utils.data.DataLoader(dataset,
-                                               batch_size=self.batch_size,
+                                               batch_size=batch_size,
                                                collate_fn=collate_fn,
                                                shuffle=shuffle)
         else:
@@ -118,20 +116,21 @@ class Trainer:
                                                                       rank=rank,
                                                                       shuffle=False)
             return torch.utils.data.DataLoader(dataset,
-                                               batch_size=self.batch_size,
+                                               batch_size=batch_size,
                                                sampler=sampler,
                                                num_workers=1,
                                                drop_last=False,
                                                pin_memory=False,
                                                collate_fn=collate_fn)
 
-    def train(self,model, optimizer, train_dataset,
-              val_dataset=None, compute_metric_func=None,
-              validation_func=None, collate_fn=None,
+    def train(self,model, optimizer,
+                train_dataset,
+                evaluator=None,
+                collate_fn=None,
               ):
         self.model = model
-        self.validation_func = validation_func
-        self.compute_metric = compute_metric_func
+        if evaluator is not None:
+            self.evaluator = evaluator()
         self.optimizer = optimizer
         if self.env_type=='pytorch':
             self.model.to(self.device)
@@ -145,14 +144,18 @@ class Trainer:
                                                                    find_unused_parameters=True)
             train_shuffle = False
 
-        self.train_dataloader = self.get_dataloader(train_dataset, collate_fn=collate_fn, shuffle=train_shuffle)
-        self.val_dataloader = self.get_dataloader(val_dataset, collate_fn=collate_fn, shuffle=False)
+        self.train_dataloader = self.get_dataloader(train_dataset, collate_fn=collate_fn, shuffle=train_shuffle, batch_size=self.batch_size)
+        # self.val_dataloader = self.get_dataloader(val_dataset, collate_fn=collate_fn, shuffle=False, batch_size=self.batch_size)
 
         for epoch in range(self.epochs):
             self.epoch = epoch
             if self.env_type == "DDP":
                 self.train_dataloader.sampler.set_epoch(self.seed + epoch)
             self.train_epoch()
+            if self.evaluator is not None:
+                if self.local_rank == 0:
+                    if getattr(self.evaluator, "on_epoch_end", None) is not None:
+                        self.evaluator.on_epoch_end()
 
     def train_epoch(self):
         report_loss = 0.0
@@ -169,24 +172,30 @@ class Trainer:
 
             if self.step % self.val_every_step == 0:
                 if self.local_rank == 0:
-                    print(f"loss is {report_loss}")
+                    print(f"loss is {report_loss / int(self.val_every_step)}")
                 with torch.no_grad():
                     self.model.eval()
-                    if self.validation_func is not None:
+                    if self.evaluator is not None:
                         if self.local_rank == 0:
-                            self.validation_func()
-                        metric = 0.0
-                        val_loss = 0.0
-                    else :
-                        metric, val_loss = self.validate()
+                            if getattr(self.evaluator, "on_validation", None) is not None:
+                                self.evaluator.on_validation()
 
-                    if self.local_rank == 0:
-                        self.after_val(metric, val_loss)
+                    # if self.validation_func is not None:
+                    #     if self.local_rank == 0:
+                    #         self.validation_func()
+                    #     metric = OrderedDict({})
+                    #     val_loss = 0.0
+                    # else:
+                    #     metric, val_loss = self.validate()
+
+                    # if self.local_rank == 0:
+                    #     self.after_val()
                 self.model.train()
                 report_loss = 0.0
 
             
             loss_v = self.train_step(**data)
+
             report_loss += loss_v
 
     def train_step(self, **model_in):
@@ -204,9 +213,9 @@ class Trainer:
     def validate(self):
 
         if self.val_dataloader is not None:
-            metric = 0
             total_lm_loss = 0.
             total_number = 0
+            metric_dict = OrderedDict({})
             for val_data in tqdm(self.val_dataloader, total=len(self.val_dataloader)):
                 if self.env_type == "pytorch":
                     data = {x: val_data[x].to(torch.device(self.device)) for x in val_data if val_data[x] is not None}
@@ -219,30 +228,43 @@ class Trainer:
                 loss = model_out["loss"].data.detach().float().item()
                 total_lm_loss += loss
                 if self.compute_metric is None:
-                    metric += 0
+                    pass
                 else :
-                    metric += self.compute_metric(logits, labels=data["labels"])
+                    metrics = self.compute_metric(logits, labels=data["labels"])
+                    metrics = OrderedDict(metrics)
+                    assert type(metrics) is OrderedDict, f"metric function must return a dict "
+                    if len(metric_dict) == 0:
+                        metric_dict = metrics
+                    else :
+                        for k, v in metrics.items():
+                            metric_dict[k] += v
+
                     total_number += 1
 
             self.model.train()
+            metrics = [v for k, v in metric_dict.items()]
+
             if torch.cuda.is_available():
                 loss_data = torch.cuda.FloatTensor(
-                    [total_lm_loss, total_number] + [metric])
+                    [total_lm_loss, total_number] + metrics)
             else:
                 loss_data = torch.FloatTensor(
-                    [total_lm_loss, total_number] + [metric])
+                    [total_lm_loss, total_number] + metrics)
 
             if self.env_type == 'DDP':
                 torch.distributed.all_reduce(loss_data)
 
             val_loss = loss_data[0] / loss_data[1]
-            metric = loss_data[2] / loss_data[1]
+            metrics = [v / loss_data[1] for v in loss_data[2:]]
+            index = 0
+            for k, v in metric_dict.items():
+                metric_dict[k] = metrics[index]
 
         else:
-            metric = 0
+            metric_dict = OrderedDict({})
             val_loss = 0.0
 
-        return metric, val_loss
+        return metric_dict, val_loss
 
     def after_val(self, metric, val_loss):
         if self.local_rank == 0:
@@ -253,7 +275,7 @@ class Trainer:
                 f.write(f"epoch: {self.epoch}, step: {self.step}, metric is {metric} validation loss is {val_loss} \n")
             torch.save(self.model.state_dict(), os.path.join(self.model_save_dir, "final_model.bin"))
             print(f"model is saved {os.path.join(self.model_save_dir, 'final_model.bin')}")
-            if metric > self.best_metric:
+            if len(metric.values()) != 0 and list(metric.values())[0] > list(self.best_metric.values())[0]:
                 self.best_metric = metric
                 torch.save(self.model.state_dict(), os.path.join(self.model_save_dir, "best_model.bin"))
                 print(f"best model is saved {os.path.join(self.model_save_dir, 'best_model.bin')}")
