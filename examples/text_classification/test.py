@@ -25,7 +25,7 @@ def main():
             "明天要下雨了。"]
 
     for t in text:
-        ids = predictor.predict_cls_classifier(t).argmax(dim=1)
+        ids = predictor.predict_cls_classifier(t).argmax(dim=0)
         print(target[ids])
 
 if __name__ == '__main__':
