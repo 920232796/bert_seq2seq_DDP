@@ -13,19 +13,18 @@ valid_path = '../data/china-people-daily-ner-corpus/example.dev'
 test_path = '../data/china-people-daily-ner-corpus/example.test'
 
 model_name = "roberta" # 选择模型名字
-task_name = "sequence_labeling_crf"
+task_name = "sequence_labeling"
 
 vocab_path = "../state_dict/roberta/vocab.txt" # roberta模型字典的位置
 model_path = "../state_dict/roberta/pytorch_model.bin" # roberta模型位置
 
-model_save_path = "./bert_sequence_labeling_crf.bin"
+model_save_path = "./bert_sequence_labeling.bin"
 
 batch_size = 16
 lr = 1e-5
-crf_lr = 0.01
 # 加载字典
 maxlen = 256
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:5" if torch.cuda.is_available() else "cpu")
 tokenizer = Tokenizer(vocab_path, do_lower_case=True, max_len=maxlen)
 
 trainer = Trainer(epoches=10,
@@ -68,7 +67,7 @@ print(f"all target is {target}")
 
 bert_model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name,
                         target_size=len(target))
-bert_model.load_pretrain_params(model_path, strict=False)
+bert_model.load_pretrain_params(model_path)
 
 predictor = Predictor(bert_model, tokenizer)
 
@@ -82,7 +81,6 @@ class NERDataset(Dataset):
         super(NERDataset, self).__init__()
         # 读原始数据
         self.data = data
-
     def __getitem__(self, i):
         ## 得到单个数据
         # print(i)
@@ -170,13 +168,8 @@ class Evaluator:
 
 def main():
 
-    crf_params = list(map(id, bert_model.crf_layer.parameters())) ## 单独把crf层参数拿出来
-    base_params = filter(lambda p: id(p) not in crf_params, bert_model.parameters())
 
-    optimizer = torch.optim.Adam([
-        {"params": base_params},
-        {"params": bert_model.crf_layer.parameters(), "lr": crf_lr}], lr=lr, weight_decay=1e-3)
-
+    optimizer = torch.optim.Adam(bert_model.parameters(), lr=lr, weight_decay=1e-5)
     train_dataset = NERDataset(train_data)
 
     trainer.train(model=bert_model, optimizer=optimizer,

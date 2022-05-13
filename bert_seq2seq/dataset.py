@@ -111,7 +111,6 @@ def bert_sequence_label_collate_fn(batch):
     target_ids = [data["labels"] for data in batch]
   
     token_ids_padded = padding(token_ids, max_length)
-
     target_ids_padded = padding(target_ids, max_length)
 
     return {

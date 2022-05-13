@@ -3,10 +3,11 @@ from bert_seq2seq.task.seq2seq.bert_seq2seq_model import BertSeq2SeqModel
 import os
 from bert_seq2seq.task.embedding.bert_embedding import BertEmbedding
 from bert_seq2seq.task.classification.bert_cls_classifier import BertClsClassifier
-from bert_seq2seq.task.sequence_labeling.bert_sequence_labeling import BertNERGP, BertNERCRF
+from bert_seq2seq.task.sequence_labeling.bert_sequence_labeling import BertNERGP, BertNERCRF, BertSequenceLabling
 from bert_seq2seq.task.seq2seq.gpt2_seq2seq_model import GPT2
 from bert_seq2seq.task.seq2seq.t5_seq2seq_model import T5Model
 from bert_seq2seq.task.relationship_extraction.bert_relationship_extraction import BertRelationshipExtraction
+
 
 ALL_TASK = {
     "bert_seq2seq": BertSeq2SeqModel,
@@ -21,6 +22,9 @@ ALL_TASK = {
     "bert_sequence_labeling_crf": BertNERCRF,
     "roberta_sequence_labeling_crf": BertNERCRF,
     "roberta-large_sequence_labeling_crf": BertNERCRF,
+    "bert_sequence_labeling": BertSequenceLabling,
+    "roberta_sequence_labeling": BertSequenceLabling,
+    "roberta-large_sequence_labeling": BertSequenceLabling,
     "bert_embedding": BertEmbedding,
     "roberta_embedding": BertEmbedding,
     "roberta-large_embedding": BertEmbedding,

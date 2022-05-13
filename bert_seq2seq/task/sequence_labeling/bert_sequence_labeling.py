@@ -7,8 +7,9 @@ class BertSequenceLabling(BasicBert):
     """
     def __init__(self, word2ix, target_size, model_name="roberta", size="base", **kwargs):
         super(BertSequenceLabling, self).__init__(word2ix=word2ix, model_name=model_name, size=size)
-        self.cls.predictions.decoder = None
+        self.cls = None
         self.layer_norm_cond = None
+        self.target_size = target_size
         self.final_dense = nn.Linear(self.config.hidden_size, target_size)
 
     def compute_loss(self, predictions, labels):
@@ -24,19 +25,14 @@ class BertSequenceLabling(BasicBert):
     def forward(self, **data):
 
         input_ids = data["input_ids"]
-        token_type_ids = data["token_type_ids"]
+        token_type_ids = data.get("token_type_ids", None)
         labels = data.get("labels", None)
-        input_tensor = input_ids.to(self.device)
-        token_type_id = token_type_ids.to(self.device)
-        if labels is not None:
-            labels = labels.to(self.device)
 
-        all_layers, pooled_out = self.bert(input_tensor, token_type_ids=token_type_id,
+        all_layers, pooled_out = self.bert(input_ids, token_type_ids=token_type_ids,
                                     output_all_encoded_layers=True)
 
         sequence_out = all_layers[-1]
-        tokens_hidden_state = self.cls.predictions.transform(sequence_out)
-        predictions = self.final_dense(tokens_hidden_state)
+        predictions = self.final_dense(sequence_out)
 
         return_data = {"logits": predictions, }
 

@@ -2,6 +2,17 @@
 import torch
 import torch.nn as nn
 import os
+import math
+
+def check_params(model, load_params,):
+    index = 0
+    for name, _ in model.named_parameters():
+        print(name)
+        if name not in list(load_params.keys()):
+            index += 1
+
+    if index > 12:
+        print(f"警告：构建模型与预训练参数相差较大，可能存在参数不匹配的风险。")
 
 def get_model(model_name, word2ix, size="base"):
     if model_name == "roberta":
@@ -64,6 +75,9 @@ class BasicBert(nn.Module):
         checkpoint = torch.load(pretrain_model_path, map_location=self.device)
 
         checkpoint = {k: v for k, v in checkpoint.items()}
+
+        check_params(self, checkpoint)
+
         self.load_state_dict(checkpoint, strict=strict)
         torch.cuda.empty_cache()
         print("{} loaded!".format(pretrain_model_path))
