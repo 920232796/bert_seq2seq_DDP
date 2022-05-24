@@ -86,7 +86,7 @@ class Evaluator:
         for text in test_data:
             print(predictor.predict_generate_beamsearch(text, beam_size=3, input_max_length=200, out_max_length=40))
 
-        torch.save(bert_model, model_save_path)
+        torch.save(bert_model.state_dict(), model_save_path)
         print(f"模型保存成功～")
 
 def main():

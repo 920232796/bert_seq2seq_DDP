@@ -92,7 +92,7 @@ class Evaluator:
                                                   repetition_penalty=1.2,
                                                   temperature=1.2))
 
-        torch.save(model, model_save_path)
+        torch.save(model.state_dict(), model_save_path)
         print(f"模型保存成功～")
 
 def main():

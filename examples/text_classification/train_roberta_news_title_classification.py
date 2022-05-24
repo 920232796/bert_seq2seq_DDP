@@ -107,7 +107,7 @@ class Evaluator:
         acc = validate()
         if acc > self.best_acc:
             self.best_acc = acc
-            torch.save(bert_model, model_save_path)
+            torch.save(bert_model.state_dict(), model_save_path)
             print(f"模型保存成功～")
 
     def on_validation(self):

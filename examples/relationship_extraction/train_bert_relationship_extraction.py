@@ -239,7 +239,7 @@ class Evaluator:
     def on_epoch_end(self):
         f1 = validate()
         if self.best_f1 > f1:
-            torch.save(model, model_save_path)
+            torch.save(model.state_dict(), model_save_path)
             print(f"模型保存成功: {model_save_path}")
 
 
