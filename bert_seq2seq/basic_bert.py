@@ -7,7 +7,7 @@ import math
 def check_params(model, load_params,):
     index = 0
     for name, _ in model.named_parameters():
-        print(name)
+        # print(name)
         if name not in list(load_params.keys()):
             index += 1
 
