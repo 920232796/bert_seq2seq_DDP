@@ -9,9 +9,8 @@ model_path = "./roberta_auto_title_model.bin"
 vocab_path = "../state_dict/roberta/vocab.txt"
 
 tokenizer = Tokenizer(vocab_path)
-# bert_model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name)
-bert_model = torch.load(model_path)
-# bert_model.load_all_params(model_path)
+bert_model = load_model(tokenizer.vocab, model_name=model_name, task_name=task_name)
+bert_model.load_all_params(model_path)
 predictor = Predictor(bert_model, tokenizer)
 
 if __name__ == '__main__':
