@@ -85,7 +85,6 @@ class BasicBert(nn.Module):
     def load_all_params(self, model_path, device="cuda"):
 
         checkpoint = torch.load(model_path, map_location=device)
-        print(checkpoint)
         checkpoint_load = {}
         for k, v in checkpoint.items():
             if k[:7] == "module.":

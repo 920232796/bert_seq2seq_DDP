@@ -147,6 +147,7 @@ class Trainer:
         self.train_dataloader = self.get_dataloader(train_dataset, collate_fn=collate_fn, shuffle=train_shuffle, batch_size=self.batch_size)
         # self.val_dataloader = self.get_dataloader(val_dataset, collate_fn=collate_fn, shuffle=False, batch_size=self.batch_size)
 
+        self.step = 0
         for epoch in range(self.epochs):
             self.epoch = epoch
             if self.env_type == "DDP":
@@ -159,7 +160,7 @@ class Trainer:
 
     def train_epoch(self):
         report_loss = 0.0
-        self.step = 0
+
         self.model.train()
         
         for data in tqdm(self.train_dataloader, total=len(self.train_dataloader)):
@@ -178,7 +179,7 @@ class Trainer:
                     if self.evaluator is not None:
                         if self.local_rank == 0:
                             if getattr(self.evaluator, "on_validation", None) is not None:
-                                self.evaluator.on_validation()
+                                self.evaluator.on_validation({"iteration": self.step, "loss": report_loss/int(self.val_every_step)})
 
                     # if self.validation_func is not None:
                     #     if self.local_rank == 0:
