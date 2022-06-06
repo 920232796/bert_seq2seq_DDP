@@ -31,14 +31,14 @@ trainer = Trainer(env_type="DDP",## DDP为pytorch的分布式数据并行训练
 ```
 具体例子代码可以参考:
 
-[train_roberta_auto_title_multi_gpu.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title_multi_gpu.py) 自动标题任务，多gpu训练。
+[train_roberta_auto_title_multi_gpu.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/bert/train_roberta_auto_title_multi_gpu.py) 自动标题任务，多gpu训练。
 
 ### 项目特点二:
 虽然使用Trainer类进行了封装，也能做到比较灵活的evaluation.
 
 #### 自定义Evaluator类，可以自由进行验证
 
-[train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/train_roberta_auto_title.py) 自动标题任务，在训练过程中很方便打印下生成内容。
+[train_roberta_auto_title.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/seq2seq/bert/train_roberta_auto_title.py) 自动标题任务，在训练过程中很方便打印下生成内容。
 
 [train_roberta_semantic_matching.py](https://github.com/920232796/bert_seq2seq_DDP/blob/master/examples/text_classification/train_roberta_semantic_matching.py) 语义匹配任务，在训练过程中轻松插入验证过程。
 
