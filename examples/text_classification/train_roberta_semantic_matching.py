@@ -90,7 +90,9 @@ class Evaluator:
     def __init__(self):
         self.best_acc = 0.0
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         res = []
         for data in val_input:
             pred = predictor.predict_cls_classifier(data)

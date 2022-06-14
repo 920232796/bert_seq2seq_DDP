@@ -117,7 +117,9 @@ class Evaluator:
             torch.save(bert_model.state_dict(), model_save_path)
             print(f"模型保存成功～")
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         pass
 
 def main():

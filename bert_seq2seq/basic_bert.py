@@ -212,3 +212,74 @@ class BasicBart(nn.Module):
     def save_all_params(self, save_path):
         torch.save(self.state_dict(), save_path)
 
+class BasicT5(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.device = torch.device("cpu")
+
+    def load_pretrain_params(self, pretrain_model_path):
+        checkpoint = torch.load(pretrain_model_path, map_location=self.device)
+        checkpoint = {"model." + k: v for k, v in checkpoint.items()}
+
+        self.load_state_dict(checkpoint, strict=True)
+        torch.cuda.empty_cache()
+        print("{} loaded!".format(pretrain_model_path))
+
+    def load_all_params(self, model_path, device="cuda"):
+        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint_load = {}
+        for k, v in checkpoint.items():
+            if k[:7] == "module.":
+                checkpoint_load[k[7:]] = v
+            else :
+                checkpoint_load[k] = v
+        self.load_state_dict(checkpoint_load, strict=False)
+        torch.cuda.empty_cache()
+        print(str(model_path) + " loaded!")
+
+    def forward(self, x):
+        raise NotImplemented
+
+    def set_device(self, device):
+        self.device = torch.device(device)
+        self.to(device)
+
+    def save_all_params(self, save_path):
+        torch.save(self.state_dict(), save_path)
+
+class BasicGLM(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.device = torch.device("cpu")
+
+    def load_pretrain_params(self, pretrain_model_path):
+        checkpoint = torch.load(pretrain_model_path,
+                                map_location=torch.device("cpu"))
+        if "module" in checkpoint:
+            # ddp
+            checkpoint = checkpoint["module"]
+        # checkpoint_load = {}
+        # for k, v in checkpoint.items():
+        #
+        #     checkpoint_load[k[6:] if k[:5] == "model" else k] = v
+
+        self.model.load_state_dict(checkpoint, strict=True)
+
+        # return checkpoint
+
+    def load_all_params(self, model_path, device="cuda"):
+        checkpoint = torch.load(model_path, map_location=device)
+        self.model.load_state_dict(checkpoint, strict=False)
+        torch.cuda.empty_cache()
+        print(str(model_path) + " loaded!")
+
+    def forward(self, x):
+        raise NotImplemented
+
+    def set_device(self, device):
+        self.device = torch.device(device)
+        self.to(device)
+
+    def save_all_params(self, save_path):
+        torch.save(self.state_dict(), save_path)
+

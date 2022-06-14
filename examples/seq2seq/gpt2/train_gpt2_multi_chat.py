@@ -78,7 +78,9 @@ class ChatDataset(Dataset):
 
 class Evaluator:
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         ## 自己定义validate函数实现，十分灵活。
         test_data = [["A:今天天气很好，你觉得呢？"],
                      ["A:我去吃了火锅。"],

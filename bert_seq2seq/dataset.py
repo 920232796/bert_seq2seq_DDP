@@ -160,3 +160,41 @@ def bert_gplinker_collate_fn(batch):
         "head_labels": head_labels,
         "tail_labels": tail_labels
     }
+
+def pad_token(tokens, max_length):
+    pad_len = max_length - len(tokens)
+    # pad id is 50000
+    tokens += [50000] * pad_len
+    return tokens
+
+def pad_position_ids(position_ids, max_length):
+    pad_len = max_length - len(position_ids[0])
+    position_ids[0] += [len(position_ids[0]) + x for x in range(pad_len)]
+    position_ids[1] += [1] * pad_len
+    return position_ids
+
+def pad_loss_mask(loss_mask, max_length):
+    pad_len = max_length - len(loss_mask)
+    loss_mask += [0] * pad_len
+    return loss_mask
+
+def glm_generation_collate_fn(batch):  #padding process in each batch
+
+    input_ids = [data["input_ids"] for data in batch]
+    position_ids = [data["position_ids"] for data in batch]
+    attention_mask = [data['attention_mask'] for data in batch]
+    loss_mask = [data['loss_mask'] for data in batch]
+
+    max_length = max([len(t) for t in input_ids])
+    for i in range(len(input_ids)):
+        input_ids[i] = pad_token(input_ids[i], max_length)
+        position_ids[i] = pad_position_ids(position_ids[i],
+                                                max_length)
+        loss_mask[i] = pad_loss_mask(loss_mask[i], max_length)
+    return {
+        'input_ids': torch.LongTensor(input_ids),
+        'position_ids': torch.LongTensor(position_ids),
+        'attention_mask': torch.LongTensor(attention_mask),
+        'loss_mask': torch.LongTensor(loss_mask),
+        'labels': torch.LongTensor(input_ids)
+    }

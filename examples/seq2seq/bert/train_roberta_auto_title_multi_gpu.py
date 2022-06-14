@@ -85,7 +85,9 @@ class AutoTitleDataset(Dataset):
 
 class Evaluator:
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         ## 自己定义validate函数实现，十分灵活。
         test_data = ["本文总结了十个可穿戴产品的设计原则而这些原则同样也是笔者认为是这个行业最吸引人的地方1为人们解决重复性问题2从人开始而不是从机器开始3要引起注意但不要刻意4提升用户能力而不是取代人",
                      "2007年乔布斯向人们展示iPhone并宣称它将会改变世界还有人认为他在夸大其词然而在8年后以iPhone为代表的触屏智能手机已经席卷全球各个角落未来智能手机将会成为真正的个人电脑为人类发展做出更大的贡献",

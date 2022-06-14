@@ -101,7 +101,9 @@ class Evaluator:
     def __init__(self):
         self.best_acc = 0.0
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         acc = validate()
         if acc > self.best_acc:
             self.best_acc = acc

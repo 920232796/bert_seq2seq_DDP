@@ -6,7 +6,7 @@ import math
 from bert_seq2seq.predictor.utils import viterbi_decode, decode_labels, \
                                         bert_beamsearch, t5_random_sample, gpt_random_sample, \
                                         t5_beamsearch, gpt_beamsearch, bert_random_sample, \
-                                        gpt_random_sample_from_ids
+                                        gpt_random_sample_from_ids, glm_random_sample
 class Predictor:
 
     def __init__(self, model, tokenizer):
@@ -14,7 +14,6 @@ class Predictor:
         self.model = model
         self.model.eval()
         self.class_name = type(model).__name__
-        self.word2idx = self.tokenizer.vocab
 
     def predict_embedding(self, text, maxlen=256):
         device = next(self.model.parameters()).device
@@ -130,7 +129,8 @@ class Predictor:
 
     def predict_generate_randomsample(self, text, input_max_length=256,
                                       out_max_length=200, top_k=30, top_p=1.0,
-                                      repetition_penalty=1.0, temperature=1.0, add_sep=False):
+                                      repetition_penalty=1.0, temperature=1.0, add_sep=False,
+                                      ):
         device = next(self.model.parameters()).device
         if "t5" in self.class_name.lower():
             return t5_random_sample(self.model, self.tokenizer, text, input_max_length,
@@ -143,6 +143,11 @@ class Predictor:
         elif "bert" in self.class_name.lower():
             return bert_random_sample(self.model, self.tokenizer, text, input_max_length,
                                      out_max_length, top_k, top_p, repetition_penalty, temperature, device)
+
+        elif "glm" in self.class_name.lower():
+            return glm_random_sample(self.model, self.tokenizer, text, input_max_length,
+                                     out_max_length, top_k, top_p, repetition_penalty,
+                                     temperature, device)
 
         else:
             print("暂不支持的解码方式")

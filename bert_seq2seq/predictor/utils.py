@@ -4,6 +4,7 @@ from typing import List
 import torch
 import numpy as np
 import torch.nn.functional as F
+import time
 
 join = os.path.join
 def load_config(config_path):
@@ -398,6 +399,157 @@ def gpt_random_sample_from_ids(model, tokenizer, input_ids, out_max_length,
             token_ids = torch.cat((token_ids, next_token.long()), dim=1)
 
     return tokenizer.decode(output_ids)
+
+def glm_random_sample(model, tokenizer, text, input_max_length, out_max_length, top_k, top_p,
+                      repetition_penalty, temperature, device, prefix_flag="", post_flag=""):
+
+    return glm_generate_sample(model, tokenizer, text, seq_length=input_max_length,
+                                    out_seq_length=out_max_length, top_k=top_k,
+                                    temperature=temperature)
+
+
+# def glm_generate_sample(model, tokenizer,
+#                         text, top_k=40,
+#                         seq_length=512,
+#                         out_seq_length=512,
+#                         eod_token=50000,
+#                         temperature=0.9,
+#                         prefix_flag=""):
+#     device = next(model.parameters()).device
+#     model.eval()
+#
+#     # generation_mask = '[gMASK]'
+#     # if 'MASK]' not in text:
+#     #     text += ' ' + generation_mask
+#     # context_tokens = tokenizer.EncodeAsIds(text, maxlen=seq_length)
+#     # context_tokens = [tokenizer.get_command('ENC').Id] + context_tokens
+#     # if not text.endswith('[gMASK]'):
+#     #     context_tokens = context_tokens + [tokenizer.get_command('eos').Id]
+#     # context_length = len(context_tokens)
+#     # context_length_tensor = torch.cuda.LongTensor([context_length])
+#     # context_length = context_length_tensor[0].item()
+#     # context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+#     # text = tokenizer.DecodeIds(context_tokens_tensor.tolist())
+#
+#     tokenizer_out = tokenizer.encode_plus(text, max_length=seq_length, prefix_flag=prefix_flag)
+#     tokens = torch.from_numpy(tokenizer_out["input_ids"])
+#     # position_ids = torch.from_numpy(tokenizer_out["position_ids"])
+#     # attention_mask = torch.from_numpy(tokenizer_out["attention_mask"])
+#
+#     start_time = time.time()
+#     mems = []
+#     # tokens = context_tokens_tensor
+#     tokens = tokens.view(1, -1).contiguous()
+#     tokens = tokens.to(device)
+#     attention_mask = torch.tensor([tokens.size(1)], device=device, dtype=torch.long)
+#     position_ids = torch.arange(tokens.size(1), device=device, dtype=torch.long)
+#     block_position_ids = torch.zeros(tokens.size(1), device=device, dtype=torch.long)
+#     position_ids = torch.stack((position_ids, block_position_ids), dim=0)
+#     position_ids = position_ids.unsqueeze(0)
+#     mask_tokens = ['MASK', 'sMASK', 'gMASK']
+#     mask_tokens = [tokenizer.get_command(token).Id for token in mask_tokens]
+#     end_tokens = [tokenizer.get_command('eop').Id, eod_token]
+#     mask_positions = []
+#     for token in mask_tokens:
+#         mask_positions += (tokens == token).nonzero(as_tuple=True)[0].tolist()
+#     mask_positions.sort()
+#     output_ = model(input_ids=tokens, position_ids=position_ids, attention_mask=attention_mask, return_memory=True)
+#     mems=output_['hidden_states']
+#     for mask_position in mask_positions:
+#         position = mask_position
+#         tokens, mems = glm_sample_sequence(model, tokenizer, tokens, position,
+#                                            mems=mems, end_tokens=end_tokens,
+#                                            out_seq_length=out_seq_length,temperature=temperature, top_k=top_k)
+#     output_tokens_list = tokens.view(-1).contiguous()
+#
+#     decode_tokens = tokenizer.DecodeIds(output_tokens_list.tolist())
+#
+#     return decode_tokens
+
+def glm_generate_sample(model,  tokenizer,text, top_k=40,seq_length=512,out_seq_length=512,
+                        eod_token=50000,temperature=0.9):
+    # device=torch.cuda.current_device()
+    device = next(model.parameters()).device
+    model.eval()
+
+    generation_mask = '[gMASK]'
+    if 'MASK]' not in text:
+        text += ' ' + generation_mask
+    context_tokens = tokenizer.EncodeAsIds(text)
+    context_tokens = [tokenizer.get_command('ENC').Id] + context_tokens
+    context_tokens = context_tokens[:seq_length]
+
+    if not text.endswith('[gMASK]'):
+        context_tokens = context_tokens + [tokenizer.get_command('eos').Id]
+    context_length = len(context_tokens)
+    context_length_tensor = torch.cuda.LongTensor([context_length])
+    context_length = context_length_tensor[0].item()
+    context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
+    text = tokenizer.DecodeIds(context_tokens_tensor.tolist())
+
+    start_time = time.time()
+    mems = []
+    tokens = context_tokens_tensor
+    tokens = tokens.view(1, -1).contiguous()
+    tokens = tokens.to(device)
+    attention_mask = torch.tensor([tokens.size(1)], device=device, dtype=torch.long)
+    position_ids = torch.arange(tokens.size(1), device=device, dtype=torch.long)
+    block_position_ids = torch.zeros(tokens.size(1), device=device, dtype=torch.long)
+    position_ids = torch.stack((position_ids, block_position_ids), dim=0)
+    position_ids = position_ids.unsqueeze(0)
+    mask_tokens = ['MASK', 'sMASK', 'gMASK']
+    mask_tokens = [tokenizer.get_command(token).Id for token in mask_tokens]
+    end_tokens = [tokenizer.get_command('eop').Id, eod_token]
+    mask_positions = []
+    for token in mask_tokens:
+        mask_positions += (context_tokens_tensor == token).nonzero(as_tuple=True)[0].tolist()
+    mask_positions.sort()
+    output_ = model(input_ids=tokens, position_ids=position_ids, attention_mask=attention_mask, return_memory=True)
+    mems=output_['hidden_states']
+    for mask_position in mask_positions:
+        position = mask_position
+        tokens, mems = glm_sample_sequence(model, tokenizer, tokens, position,
+                                           mems=mems, end_tokens=end_tokens,
+                                           out_seq_length=out_seq_length,temperature=temperature, top_k=top_k)
+    output_tokens_list = tokens.view(-1).contiguous()
+
+    decode_tokens = tokenizer.DecodeIds(output_tokens_list.tolist())
+
+
+    return decode_tokens
+
+def glm_sample_sequence(model,  tokenizer, context_tokens, context_length,
+                        mems=None, end_tokens=None,out_seq_length=512,temperature=0.9,
+                        top_k=40):
+    tokens = context_tokens.new_full((1, 1), tokenizer.get_command('sop').Id)
+    counter = 0
+    if mems is None:
+        mems = []
+
+    last_beam_num = 1
+
+    while counter < out_seq_length:
+        position_ids = context_tokens.new_ones(last_beam_num, 2, 1)
+        position_ids[:, 0] = context_length
+        position_ids[:, 1] = counter + 1
+        attention_mask = context_tokens.new_zeros([1], device=context_tokens.device, dtype=torch.long)
+        last_token = tokens[:, -1:]
+        output_ = model(input_ids=last_token, position_ids=position_ids, attention_mask=attention_mask,mems=mems, return_memory=True)
+        mems = output_['hidden_states']
+        next_token_logits = output_['logits']
+        next_token_logits = next_token_logits[:, -1]
+        next_token_logits /= temperature
+        indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
+        next_token_logits[indices_to_remove] = -float('Inf')
+        log_probs = F.softmax(next_token_logits, dim=-1)
+        prev = torch.multinomial(log_probs, num_samples=1)[0]
+        is_end = prev.item() in end_tokens
+        if is_end:
+            break
+        prev = prev.view(1, 1)
+        tokens = prev if tokens is None else torch.cat((tokens, prev), dim=1)
+        counter += 1
+    return torch.cat((context_tokens, tokens), dim=1), mems
 
 def bert_random_sample(model, tokenizer, text, input_max_length, out_max_length,
                        top_k, top_p, repetition_penalty, temperature, device):

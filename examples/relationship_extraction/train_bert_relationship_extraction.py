@@ -233,7 +233,9 @@ class Evaluator:
     def __init__(self):
         self.best_f1 = 0.0
 
-    def on_validation(self):
+    def on_validation(self, data):
+        loss = data["loss"]
+        step = data["iteration"]
         pass
 
     def on_epoch_end(self):
