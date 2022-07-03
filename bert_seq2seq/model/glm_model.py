@@ -31,15 +31,12 @@ from torch.nn import LayerNorm
 
 print_rank_0 = print
 
-if os.getenv('ENV_TYPE') == 'deepspeed+mpu':
-    from bert_seq2seq.mpu import copy_to_model_parallel_region, gather_from_model_parallel_region
-    from bert_seq2seq.mpu.cross_entropy import vocab_parallel_cross_entropy
+from bert_seq2seq.mpu import copy_to_model_parallel_region, gather_from_model_parallel_region
+from bert_seq2seq.mpu.cross_entropy import vocab_parallel_cross_entropy
 
-    from bert_seq2seq.mpu.random import checkpoint
-elif os.getenv('ENV_TYPE') == 'deepspeed':
-    from deepspeed.runtime.activation_checkpointing.checkpointing import checkpoint
-else:
-    from torch.utils.checkpoint import checkpoint
+# from bert_seq2seq.mpu.random import checkpoint
+# from deepspeed.runtime.activation_checkpointing.checkpointing import checkpoint
+# from torch.utils.checkpoint import checkpoint
 
 large_ch_config = {
     "num_layers": 24,
@@ -311,21 +308,6 @@ class GLMStack(torch.nn.Module):
 
             return custom_forward
 
-        # if self.config['checkpoint_activations']:
-        #     l = 0
-        #     num_layers = len(self.layers)
-        #     chunk_length = self.checkpoint_num_layers
-        #     while l < num_layers:
-        #         args = [hidden_states, attention_mask] if not self.use_decoder_layer else [hidden_states,
-        #                                                                     encoder_states,
-        #                                                                     attention_mask]
-        #         if self.relative_encoding:
-        #             args += [position_embeddings, self.r_w_bias, self.r_r_bias]
-        #         if memory_states:
-        #             args += memory_states[l: l + chunk_length]
-        #         hidden_states = checkpoint(custom(l, l + chunk_length), *args)
-        #         l += chunk_length
-        # else:
         for i, layer in enumerate(self.layers):
             args = [hidden_states, attention_mask] if not self.use_decoder_layer else [hidden_states,
                                                                                        encoder_states,
@@ -521,3 +503,18 @@ class GLMModel(nn.Module):
 
         else:
             return {'logits': logits, 'hidden_states': hidden_layers}
+
+    def load_weights_glm(self, checkpoint_path):
+        checkpoint = torch.load(checkpoint_path,
+                                map_location=torch.device("cpu"))
+        if "module" in checkpoint:
+            # ddp
+            checkpoint = checkpoint["module"]
+        checkpoint_load = {}
+        for k, v in checkpoint.items():
+
+            checkpoint_load[k[6:] if k[:5] == "model" else k] = v
+
+        self.load_state_dict(checkpoint_load, strict=False)
+
+        return checkpoint_load

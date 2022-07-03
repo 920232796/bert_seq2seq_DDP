@@ -265,7 +265,6 @@ class GLMTokenizer:
     def encode_plus(self, source_text,
                        target_text=None,
                        max_length=512,
-                       # mask_token="gMASK",
                        prefix_flag="",
                        post_flag=""):
 

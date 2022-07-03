@@ -73,4 +73,7 @@ class GLMSeq2SeqModel(BasicGLM):
 
         return result_data
 
+    def load_weights(self, checkpoints_path):
+        self.model.load_weights_glm(checkpoints_path)
+
 

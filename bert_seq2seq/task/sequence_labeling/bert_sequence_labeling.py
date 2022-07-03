@@ -5,8 +5,12 @@ from bert_seq2seq.layers import GlobalPointer, CRFLayer
 class BertSequenceLabling(BasicBert):
     """
     """
-    def __init__(self, word2ix, target_size, model_name="roberta", size="base", **kwargs):
-        super(BertSequenceLabling, self).__init__(word2ix=word2ix, model_name=model_name, size=size)
+    def __init__(self, vocab,
+                 target_size,
+                 model_name="roberta",
+                 size="base",
+                 **kwargs):
+        super(BertSequenceLabling, self).__init__(word2ix=vocab, model_name=model_name, size=size)
         self.cls = None
         self.layer_norm_cond = None
         self.target_size = target_size

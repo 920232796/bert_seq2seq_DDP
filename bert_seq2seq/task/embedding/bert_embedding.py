@@ -4,8 +4,11 @@ from bert_seq2seq.basic_bert import BasicBert
 class BertEmbedding(BasicBert):
     """
     """
-    def __init__(self, word2ix, model_name="roberta", size="base", **kwargs):
-        super(BertEmbedding, self).__init__(word2ix=word2ix, model_name=model_name, size=size)
+    def __init__(self, vocab,
+                 model_name="roberta",
+                 size="base",
+                 **kwargs):
+        super(BertEmbedding, self).__init__(word2ix=vocab, model_name=model_name, size=size)
         self.layer_norm_cond = None
         self.cls.predictions.decoder = None
     

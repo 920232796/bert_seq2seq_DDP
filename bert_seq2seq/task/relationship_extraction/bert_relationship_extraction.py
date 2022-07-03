@@ -6,8 +6,13 @@ from bert_seq2seq.layers import GlobalPointer
 class BertRelationshipExtraction(BasicBert):
     """
     """
-    def __init__(self, word2ix, target_size, inner_dim=64, size="base", model_name="roberta", **kwargs):
-        super(BertRelationshipExtraction, self).__init__(word2ix=word2ix, model_name=model_name, size=size)
+    def __init__(self, vocab,
+                 target_size,
+                 inner_dim=64,
+                 size="base",
+                 model_name="roberta",
+                 **kwargs):
+        super(BertRelationshipExtraction, self).__init__(word2ix=vocab, model_name=model_name, size=size)
         self.entity_output = GlobalPointer(self.config.hidden_size, 2, 
                                             inner_dim, RoPE=True, trill_mask=True)
         self.head_output = GlobalPointer(self.config.hidden_size, target_size, 

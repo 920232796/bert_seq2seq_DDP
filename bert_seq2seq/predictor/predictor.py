@@ -15,7 +15,7 @@ class Predictor:
         self.model.eval()
         self.class_name = type(model).__name__
 
-    def predict_embedding(self, text, maxlen=256):
+    def predict_embedding(self, text, maxlen=256, pred_type="cls"):
         device = next(self.model.parameters()).device
         tokenizer_out = self.tokenizer.encode_plus(text, max_length=maxlen, truncation=True)
 
@@ -27,7 +27,10 @@ class Predictor:
             input_ids = input_ids.view(1, -1)
             token_type_ids = token_type_ids.view(1, -1)
         with torch.no_grad():
-            score = self.model(**{"input_ids": input_ids, "token_type_ids": token_type_ids})["logits"].cpu().mean(1)[0]
+            if pred_type == "cls":
+                score = self.model(**{"input_ids": input_ids, "token_type_ids": token_type_ids})["logits"].cpu()[0, 0]
+            elif pred_type == "mean":
+                score = self.model(**{"input_ids": input_ids, "token_type_ids": token_type_ids})["logits"].cpu().mean(dim=1)[0]
 
         return score
 

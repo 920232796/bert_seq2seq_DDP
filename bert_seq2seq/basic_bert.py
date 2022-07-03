@@ -72,6 +72,7 @@ class BasicBert(nn.Module):
         self.device = torch.device("cpu")
 
     def load_pretrain_params(self, pretrain_model_path, strict=False):
+
         checkpoint = torch.load(pretrain_model_path, map_location=self.device)
 
         checkpoint = {k: v for k, v in checkpoint.items()}
@@ -253,19 +254,39 @@ class BasicGLM(nn.Module):
         self.device = torch.device("cpu")
 
     def load_pretrain_params(self, pretrain_model_path):
-        checkpoint = torch.load(pretrain_model_path,
-                                map_location=torch.device("cpu"))
-        if "module" in checkpoint:
-            # ddp
-            checkpoint = checkpoint["module"]
-        # checkpoint_load = {}
-        # for k, v in checkpoint.items():
-        #
-        #     checkpoint_load[k[6:] if k[:5] == "model" else k] = v
 
-        self.model.load_state_dict(checkpoint, strict=True)
+        if os.getenv("ENV_TYPE") == "deepspeed+mpu":
+            model_dir = os.path.dirname(pretrain_model_path)
+            from bert_seq2seq.mpu.mp_tools import change_pytorch_model_mp_from_1_to_n, check_pytorch_model_mp_size
+            model_parallel_size = int(os.getenv("MODEL_PARALLEL_SIZE"))
+            assert model_parallel_size is not None
+            if torch.distributed.is_initialized(
+            ) and torch.distributed.get_rank() == 0:
+                # change the mp_size in rank 0
+                print(
+                    "preparing the model weights for model parallel size = {:02d}"
+                        .format(model_parallel_size))
+                if model_parallel_size > 1 and not check_pytorch_model_mp_size(
+                        model_dir, model_parallel_size):
+                    change_pytorch_model_mp_from_1_to_n("glm",
+                                                        model_dir, model_parallel_size)
 
-        # return checkpoint
+            from bert_seq2seq import mpu
+            torch.distributed.barrier(group=mpu.get_model_parallel_group())
+
+            if model_parallel_size > 1:
+                from bert_seq2seq.mpu import get_model_parallel_rank
+                model_parallel_rank = get_model_parallel_rank()
+                checkpoint_path = os.path.join(
+                    model_dir,
+                    "pytorch_model_{:02d}.bin".format(model_parallel_rank))
+                if os.path.exists(checkpoint_path):
+                    self.load_weights(checkpoint_path)
+                    print(f"model loaded successed {checkpoint_path}")
+
+        else :
+            self.load_weights(pretrain_model_path)
+
 
     def load_all_params(self, model_path, device="cuda"):
         checkpoint = torch.load(model_path, map_location=device)

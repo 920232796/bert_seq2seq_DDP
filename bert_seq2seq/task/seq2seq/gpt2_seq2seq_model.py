@@ -3,14 +3,14 @@ from bert_seq2seq.model.gpt2_model import GPT2LMHeadModel, GPT2Config
 from bert_seq2seq.basic_bert import BasicGPT
 
 class GPT2(BasicGPT):
-    def __init__(self, word2ix,
+    def __init__(self, vocab,
                  model_name="gpt2",
                  **kwargs
                  ):
         super().__init__()
-        self.word2ix = word2ix
+        self.word2ix = vocab
         if model_name == "gpt2":
-            self.config = GPT2Config(len(word2ix))
+            self.config = GPT2Config(len(vocab))
         else :
             self.config = None
         self.model = GPT2LMHeadModel(self.config)

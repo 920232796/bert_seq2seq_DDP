@@ -4,8 +4,11 @@ from bert_seq2seq.basic_bert import BasicBert
 class BertClsClassifier(BasicBert):
     """
     """
-    def __init__(self, word2ix, target_size, model_name="roberta", **kwargs):
-        super(BertClsClassifier, self).__init__(word2ix=word2ix, model_name=model_name)
+    def __init__(self, vocab,
+                 target_size,
+                 model_name="roberta",
+                 **kwargs):
+        super(BertClsClassifier, self).__init__(word2ix=vocab, model_name=model_name)
         self.target_size = target_size
         self.final_dense = nn.Linear(self.config.hidden_size, self.target_size)
         self.cls = None

@@ -5,10 +5,18 @@ import os
 import argparse
 from .launch import launch_dist
 from collections import OrderedDict
+from bert_seq2seq import mpu
+try:
+    import deepspeed
+except:
+    pass
+import random
+import numpy as np
 
 class Trainer:
 
-    def __init__(self, epoches,
+    def __init__(self,
+                 epoches,
                  env_type="pytorch",
                  val_every_step=100,
                  batch_size=1,
@@ -22,6 +30,7 @@ class Trainer:
                  num_nodes=1,
                  num_gpus=1,
                  training_script="train.py",
+                 model_parallel_size=1,
                  ):
         pass
         self.seed = seed
@@ -33,16 +42,20 @@ class Trainer:
         self.best_metric = OrderedDict({"temp": 0.0})
         self.batch_size = batch_size
         self.not_call_launch = True
+        self.model_parallel_size = model_parallel_size
 
         gpu_count = torch.cuda.device_count()
         if num_gpus > gpu_count:
             print("gpu数量不符")
             os._exit(0)
 
-        if env_type == "DDP":
+        if env_type == "DDP" or "deepspeed" in env_type:
+            if "mpu" not in env_type:
+                assert model_parallel_size == 1
             self.get_dist_args()
             if not self.not_call_launch:
-                launch_dist(num_nodes=num_nodes,
+                launch_dist(env_type=env_type,
+                            num_nodes=num_nodes,
                             gpus_per_node=num_gpus,
                             master_addr=master_ip,
                             master_port=master_port,
@@ -52,6 +65,7 @@ class Trainer:
             self.initialize_distributed()
 
         elif env_type == "pytorch":
+            assert model_parallel_size == 1
             self.local_rank = 0
         else :
             print("不支持的env type")
@@ -69,7 +83,7 @@ class Trainer:
         if self.env_type == 'pytorch':
             self.print_rank_0('No need to initialize')
             return
-        if self.env_type == 'DDP':
+        if self.env_type == 'DDP' or "deepspeed" in self.env_type:
             torch.backends.cudnn.enabled = False
             if self.local_rank is not None:
                 device = self.local_rank
@@ -84,6 +98,21 @@ class Trainer:
                 backend='nccl',
                 world_size=self.world_size, rank=self.rank,
                 init_method=init_method)
+
+        if self.env_type == 'deepspeed+mpu':
+            os.environ["MODEL_PARALLEL_SIZE"] = str(self.model_parallel_size)
+            mpu.initialize_model_parallel(self.model_parallel_size)
+
+        self.set_seed(1234)
+
+    def set_seed(self, seed=1234):
+        """Set random seed for reproducability."""
+        if seed is not None and seed > 0:
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            if self.env_type == 'deepspeed+mpu':
+                mpu.model_parallel_cuda_manual_seed(seed)
 
     def get_dist_args(self):
         parser = argparse.ArgumentParser()
@@ -109,12 +138,10 @@ class Trainer:
                                                collate_fn=collate_fn,
                                                shuffle=shuffle)
         else:
-            num_replicas = self.world_size
             rank = self.rank
             sampler = torch.utils.data.distributed.DistributedSampler(dataset,
-                                                                      num_replicas=num_replicas,
                                                                       rank=rank,
-                                                                      shuffle=False)
+                                                                      shuffle=shuffle)
             return torch.utils.data.DataLoader(dataset,
                                                batch_size=batch_size,
                                                sampler=sampler,
@@ -123,35 +150,81 @@ class Trainer:
                                                pin_memory=False,
                                                collate_fn=collate_fn)
 
-    def train(self,model, optimizer,
-                train_dataset,
-                evaluator=None,
-                collate_fn=None,
+    def train(self,model,
+              optimizer,
+              train_dataset,
+              evaluator=None,
+              collate_fn=None,
               ):
         self.model = model
         if evaluator is not None:
             self.evaluator = evaluator()
         self.optimizer = optimizer
+
+        if self.optimizer is None:
+            self.optimizer = torch.optim.Adam(self.model.parameters(),
+                                              lr=self.lr,
+                                              weight_decay=1e-3)
+
         if self.env_type=='pytorch':
             self.model.to(self.device)
-            train_shuffle = True
 
-        else:
+        elif self.env_type == "DDP":
             self.model.cuda(self.local_rank)
             self.model = torch.nn.parallel.DistributedDataParallel(self.model,
                                                                    device_ids=[self.local_rank],
                                                                    output_device=self.local_rank,
                                                                    find_unused_parameters=True)
-            train_shuffle = False
+        else :
+            model.cuda(torch.device('cuda', self.local_rank))
 
-        self.train_dataloader = self.get_dataloader(train_dataset, collate_fn=collate_fn, shuffle=train_shuffle, batch_size=self.batch_size)
-        # self.val_dataloader = self.get_dataloader(val_dataset, collate_fn=collate_fn, shuffle=False, batch_size=self.batch_size)
+
+        self.train_dataloader = self.get_dataloader(train_dataset,
+                                                    collate_fn=collate_fn,
+                                                    shuffle=True,
+                                                    batch_size=self.batch_size)
+        if 'deepspeed' in self.env_type:
+            # initialize the deepspeed
+            ds_config = {
+                "train_micro_batch_size_per_gpu": self.batch_size,
+                "gradient_accumulation_steps": self.gradient_accmulation_step,
+                "optimizer": {
+                    "type": "Adam",
+                    "params": {
+                        "lr": 1e-5,
+                    }
+                },
+                "steps_per_print": 50,
+                "gradient_clipping": 1.0,
+                "fp16": {
+                    "enabled": True
+                },
+                "zero_optimization": {
+                    "stage": 1,
+                    "offload_optimizer": {
+                        "device": "cpu"
+                    }
+                },
+
+            }
+            self.model, optimizer, _, lr_scheduler = deepspeed.initialize(
+                model=self.model,
+                model_parameters=self.model.parameters(),
+                optimizer=optimizer,
+                mpu=mpu if self.env_type == 'deepspeed+mpu' else None,
+                # mpu=None,
+                config=ds_config,
+                dist_init_required=True)
 
         self.step = 0
         for epoch in range(self.epochs):
             self.epoch = epoch
-            if self.env_type == "DDP":
-                self.train_dataloader.sampler.set_epoch(self.seed + epoch)
+            if self.env_type == "DDP" or self.env_type == "deepspeed":
+                self.train_dataloader.sampler.set_epoch(self.seed + epoch + self.world_size)
+            elif self.env_type == "deepspeed+mpu":
+                if mpu.get_model_parallel_rank() == 0:
+                    self.train_dataloader.sampler.set_epoch(self.seed + epoch + self.world_size)
+
             self.train_epoch()
             if self.evaluator is not None:
                 if self.local_rank == 0:
@@ -181,23 +254,36 @@ class Trainer:
                             if getattr(self.evaluator, "on_validation", None) is not None:
                                 self.evaluator.on_validation({"iteration": self.step, "loss": report_loss/int(self.val_every_step)})
 
-                    # if self.validation_func is not None:
-                    #     if self.local_rank == 0:
-                    #         self.validation_func()
-                    #     metric = OrderedDict({})
-                    #     val_loss = 0.0
-                    # else:
-                    #     metric, val_loss = self.validate()
-
-                    # if self.local_rank == 0:
-                    #     self.after_val()
                 self.model.train()
                 report_loss = 0.0
 
-            
-            loss_v = self.train_step(**data)
+            if self.env_type == "pytorch" or self.env_type == "DDP":
+                loss_v = self.train_step(**data)
+            elif "deepspeed" in self.env_type:
+                loss_v = self.train_step_deepspeed(**data)
 
             report_loss += loss_v
+
+    def train_step_deepspeed(self, **model_in):
+        # Forward model for one step.
+        # if (self.step + 1) % self.gradient_accmulation_step == 0:
+        #     self.model.set_gradient_accumulation_boundary(True)
+        # else:
+        #     self.model.set_gradient_accumulation_boundary(False)
+        model_out = self.model(**model_in)
+        lm_loss = model_out['loss']
+        reduced_loss = lm_loss.detach().clone().view(1)
+
+        torch.distributed.all_reduce(reduced_loss.data)
+        reduced_loss.data = reduced_loss.data / self.world_size
+
+
+        self.model.backward(lm_loss)
+        self.model.step()
+
+        torch.distributed.barrier()
+
+        return reduced_loss.data.detach().item()
 
     def train_step(self, **model_in):
         pass

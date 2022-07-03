@@ -5,7 +5,10 @@ from bert_seq2seq.basic_bert import BasicBert
 class BertSeq2SeqModel(BasicBert):
     """
     """
-    def __init__(self, vocab, model_name="roberta", size="base", **kwargs):
+    def __init__(self, vocab,
+                 model_name="roberta",
+                 size="base",
+                 **kwargs):
         super(BertSeq2SeqModel, self).__init__(word2ix=vocab, model_name=model_name, size=size)
             
         self.hidden_dim = self.config.hidden_size
