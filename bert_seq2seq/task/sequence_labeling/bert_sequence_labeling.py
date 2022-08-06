@@ -50,8 +50,8 @@ class BertSequenceLabling(BasicBert):
 class BertNERGP(BasicBert):
     """
     """
-    def __init__(self, word2ix, ent_type_size, inner_dim=64, size="base", model_name="roberta", **kwargs):
-        super(BertNERGP, self).__init__(word2ix=word2ix, model_name=model_name, size=size)
+    def __init__(self, vocab, ent_type_size, inner_dim=64, size="base", model_name="roberta", **kwargs):
+        super(BertNERGP, self).__init__(word2ix=vocab, model_name=model_name, size=size)
         self.gp = GlobalPointer(self.config.hidden_size, ent_type_size, inner_dim, RoPE=True)
         self.layer_norm_cond = None
         self.cls = None
@@ -78,8 +78,8 @@ class BertNERGP(BasicBert):
 class BertNERCRF(BasicBert):
     """
     """
-    def __init__(self, word2ix, target_size=-1, size="base", model_name="roberta", **kwargs):
-        super(BertNERCRF, self).__init__(word2ix=word2ix, model_name=model_name, size=size,)
+    def __init__(self, vocab, target_size=-1, size="base", model_name="roberta", **kwargs):
+        super(BertNERCRF, self).__init__(word2ix=vocab, model_name=model_name, size=size,)
         self.layer_norm_cond = None
         self.cls = None
         self.final_dense = nn.Linear(self.config.hidden_size, target_size)

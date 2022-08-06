@@ -30,7 +30,6 @@ class Trainer:
                  num_nodes=1,
                  num_gpus=1,
                  training_script="train.py",
-                 model_parallel_size=1,
                  ):
         pass
         self.seed = seed
@@ -42,7 +41,6 @@ class Trainer:
         self.best_metric = OrderedDict({"temp": 0.0})
         self.batch_size = batch_size
         self.not_call_launch = True
-        self.model_parallel_size = model_parallel_size
 
         if self.env_type == "DDP":
             gpu_count = torch.cuda.device_count()
@@ -50,9 +48,7 @@ class Trainer:
                 print("gpu数量不符")
                 os._exit(0)
 
-        if env_type == "DDP" or "deepspeed" in env_type:
-            if "mpu" not in env_type:
-                assert model_parallel_size == 1
+        if env_type == "DDP":
             self.get_dist_args()
             if not self.not_call_launch:
                 launch_dist(env_type=env_type,
@@ -66,7 +62,6 @@ class Trainer:
             self.initialize_distributed()
 
         elif env_type == "pytorch":
-            assert model_parallel_size == 1
             self.local_rank = 0
         else :
             print("不支持的env type")
@@ -184,47 +179,11 @@ class Trainer:
                                                     collate_fn=collate_fn,
                                                     shuffle=True,
                                                     batch_size=self.batch_size)
-        if 'deepspeed' in self.env_type:
-            # initialize the deepspeed
-            ds_config = {
-                "train_micro_batch_size_per_gpu": self.batch_size,
-                "gradient_accumulation_steps": self.gradient_accmulation_step,
-                "optimizer": {
-                    "type": "Adam",
-                    "params": {
-                        "lr": 1e-5,
-                    }
-                },
-                "steps_per_print": 50,
-                "gradient_clipping": 1.0,
-                "fp16": {
-                    "enabled": True
-                },
-                "zero_optimization": {
-                    "stage": 1,
-                    "offload_optimizer": {
-                        "device": "cpu"
-                    }
-                },
-
-            }
-            self.model, optimizer, _, lr_scheduler = deepspeed.initialize(
-                model=self.model,
-                model_parameters=self.model.parameters(),
-                optimizer=optimizer,
-                mpu=mpu if self.env_type == 'deepspeed+mpu' else None,
-                # mpu=None,
-                config=ds_config,
-                dist_init_required=True)
-
         self.step = 0
         for epoch in range(self.epochs):
             self.epoch = epoch
-            if self.env_type == "DDP" or self.env_type == "deepspeed":
+            if self.env_type == "DDP":
                 self.train_dataloader.sampler.set_epoch(self.seed + epoch + self.world_size)
-            elif self.env_type == "deepspeed+mpu":
-                if mpu.get_model_parallel_rank() == 0:
-                    self.train_dataloader.sampler.set_epoch(self.seed + epoch + self.world_size)
 
             self.train_epoch()
             if self.evaluator is not None:
@@ -258,33 +217,9 @@ class Trainer:
                 self.model.train()
                 report_loss = 0.0
 
-            if self.env_type == "pytorch" or self.env_type == "DDP":
-                loss_v = self.train_step(**data)
-            elif "deepspeed" in self.env_type:
-                loss_v = self.train_step_deepspeed(**data)
+            loss_v = self.train_step(**data)
 
             report_loss += loss_v
-
-    def train_step_deepspeed(self, **model_in):
-        # Forward model for one step.
-        # if (self.step + 1) % self.gradient_accmulation_step == 0:
-        #     self.model.set_gradient_accumulation_boundary(True)
-        # else:
-        #     self.model.set_gradient_accumulation_boundary(False)
-        model_out = self.model(**model_in)
-        lm_loss = model_out['loss']
-        reduced_loss = lm_loss.detach().clone().view(1)
-
-        torch.distributed.all_reduce(reduced_loss.data)
-        reduced_loss.data = reduced_loss.data / self.world_size
-
-
-        self.model.backward(lm_loss)
-        self.model.step()
-
-        torch.distributed.barrier()
-
-        return reduced_loss.data.detach().item()
 
     def train_step(self, **model_in):
         pass
