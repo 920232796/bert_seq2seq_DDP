@@ -44,10 +44,11 @@ class Trainer:
         self.not_call_launch = True
         self.model_parallel_size = model_parallel_size
 
-        gpu_count = torch.cuda.device_count()
-        if num_gpus > gpu_count:
-            print("gpu数量不符")
-            os._exit(0)
+        if self.env_type == "DDP":
+            gpu_count = torch.cuda.device_count()
+            if num_gpus > gpu_count:
+                print("gpu数量不符")
+                os._exit(0)
 
         if env_type == "DDP" or "deepspeed" in env_type:
             if "mpu" not in env_type:
