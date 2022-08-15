@@ -405,7 +405,7 @@ def glm_random_sample(model, tokenizer, text, input_max_length, out_max_length, 
 
     return glm_generate_sample(model, tokenizer, text, seq_length=input_max_length,
                                     out_seq_length=out_max_length, top_k=top_k,
-                                    temperature=temperature)
+                                    temperature=temperature, repetition_penalty=repetition_penalty)
 
 
 # def glm_generate_sample(model, tokenizer,
@@ -467,7 +467,7 @@ def glm_random_sample(model, tokenizer, text, input_max_length, out_max_length, 
 #     return decode_tokens
 
 def glm_generate_sample(model,  tokenizer,text, top_k=40,seq_length=512,out_seq_length=512,
-                        eod_token=50000,temperature=0.9):
+                        eod_token=50000,temperature=0.9, repetition_penalty=1.0):
     # device=torch.cuda.current_device()
     device = next(model.parameters()).device
     model.eval()
@@ -510,7 +510,10 @@ def glm_generate_sample(model,  tokenizer,text, top_k=40,seq_length=512,out_seq_
         position = mask_position
         tokens, mems = glm_sample_sequence(model, tokenizer, tokens, position,
                                            mems=mems, end_tokens=end_tokens,
-                                           out_seq_length=out_seq_length,temperature=temperature, top_k=top_k)
+                                           out_seq_length=out_seq_length,
+                                           temperature=temperature,
+                                           top_k=top_k,
+                                           repetition_penalty=repetition_penalty)
     output_tokens_list = tokens.view(-1).contiguous()
 
     decode_tokens = tokenizer.DecodeIds(output_tokens_list.tolist())
@@ -520,24 +523,26 @@ def glm_generate_sample(model,  tokenizer,text, top_k=40,seq_length=512,out_seq_
 
 def glm_sample_sequence(model,  tokenizer, context_tokens, context_length,
                         mems=None, end_tokens=None,out_seq_length=512,temperature=0.9,
-                        top_k=40):
+                        top_k=40, repetition_penalty=1.0):
     tokens = context_tokens.new_full((1, 1), tokenizer.get_command('sop').Id)
     counter = 0
     if mems is None:
         mems = []
 
     last_beam_num = 1
-
+    rp = RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty)
     while counter < out_seq_length:
         position_ids = context_tokens.new_ones(last_beam_num, 2, 1)
         position_ids[:, 0] = context_length
         position_ids[:, 1] = counter + 1
         attention_mask = context_tokens.new_zeros([1], device=context_tokens.device, dtype=torch.long)
         last_token = tokens[:, -1:]
-        output_ = model(input_ids=last_token, position_ids=position_ids, attention_mask=attention_mask,mems=mems, return_memory=True)
+        with torch.no_grad():
+            output_ = model(input_ids=last_token, position_ids=position_ids, attention_mask=attention_mask,mems=mems, return_memory=True)
         mems = output_['hidden_states']
         next_token_logits = output_['logits']
         next_token_logits = next_token_logits[:, -1]
+        next_token_logits = rp(input_ids=tokens, scores=next_token_logits)
         next_token_logits /= temperature
         indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
         next_token_logits[indices_to_remove] = -float('Inf')
@@ -549,6 +554,10 @@ def glm_sample_sequence(model,  tokenizer, context_tokens, context_length,
         prev = prev.view(1, 1)
         tokens = prev if tokens is None else torch.cat((tokens, prev), dim=1)
         counter += 1
+        # output_tokens_list = tokens.view(-1).contiguous()
+        #
+        # decode_tokens = tokenizer.DecodeIds(output_tokens_list.tolist())
+        # print(f"decoder is {decode_tokens}")
     return torch.cat((context_tokens, tokens), dim=1), mems
 
 def bert_random_sample(model, tokenizer, text, input_max_length, out_max_length,
