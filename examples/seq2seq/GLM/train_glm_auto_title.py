@@ -107,7 +107,7 @@ class Evaluator:
             print(predictor.predict_generate_randomsample(text,
                                                           top_k=50,
                                                           top_p=0.9,
-                                                          repetition_penalty=4.0,
+                                                          repetition_penalty=1.0,
                                                           input_max_length=600,
                                                           out_max_length=100,
                                                           ))

@@ -26,60 +26,15 @@ from bert_seq2seq.model.layers.embeddings import VocabParallelEmbedding
 from bert_seq2seq.model.layers.embeddings import PositionalEmbedding
 from bert_seq2seq.model.prompt import PromptSpell
 from bert_seq2seq.model.utils import normal_init_method
-from bert_seq2seq.basic_bert import BasicGLM
 from torch.nn import LayerNorm
 
 print_rank_0 = print
 
-from bert_seq2seq.mpu import copy_to_model_parallel_region, gather_from_model_parallel_region
-from bert_seq2seq.mpu.cross_entropy import vocab_parallel_cross_entropy
+if os.getenv('ENV_TYPE') == 'deepspeed':
+    from deepspeed.runtime.activation_checkpointing.checkpointing import checkpoint
+else:
+    from torch.utils.checkpoint import checkpoint
 
-# from bert_seq2seq.mpu.random import checkpoint
-# from deepspeed.runtime.activation_checkpointing.checkpointing import checkpoint
-# from torch.utils.checkpoint import checkpoint
-
-large_ch_config = {
-    "num_layers": 24,
-    "vocab_size": 50048,
-    "hidden_size": 1024,
-    "num_attention_heads":16,
-    "embedding_dropout_prob":0.1,
-    "attention_dropout_prob":0.1,
-    "output_dropout_prob":0.1,
-    "max_sequence_length":1024,
-    "max_memory_length":511,
-    "checkpoint_activations": False ,
-    "checkpoint_num_layers":1 ,
-    "parallel_output": True,
-    "relative_encoding": False,
-    "block_position_encoding": True,
-    "output_predict": True,
-    "spell_length": None,
-    "spell_func": "lstm",
-    "attention_scale":1.0
-}
-
-class GLMLargeChConfig:
-    def __init__(self):
-        config = large_ch_config
-        self.num_layers = config["num_layers"]
-        self.vocab_size = config["vocab_size"]
-        self.hidden_size = config["hidden_size"]
-        self.num_attention_heads = config["num_attention_heads"]
-        self.embedding_dropout_prob = config["embedding_dropout_prob"]
-        self.attention_dropout_prob = config["attention_dropout_prob"]
-        self.output_dropout_prob = config["output_dropout_prob"]
-        self.max_sequence_length = config["max_sequence_length"]
-        self.max_memory_length = config["max_memory_length"]
-        self.checkpoint_activations = config["checkpoint_activations"]
-        self.checkpoint_num_layers = config["checkpoint_num_layers"]
-        self.parallel_output = config["parallel_output"]
-        self.relative_encoding = config["relative_encoding"]
-        self.block_position_encoding = config["block_position_encoding"]
-        self.output_predict = config["output_predict"]
-        self.spell_length = config["spell_length"]
-        self.spell_func = config["spell_func"]
-        self.attention_scale = config["attention_scale"]
 
 class GLMStack(torch.nn.Module):
     """GLM transformer.
@@ -115,6 +70,7 @@ class GLMStack(torch.nn.Module):
                                             scaling for the output weights (
                                             output of self attention and mlp).
     """
+
     def __init__(
         self,
         num_layers,
@@ -218,7 +174,8 @@ class GLMStack(torch.nn.Module):
                 memory_states=None,
                 encoder_states=None,
                 return_memory=False,
-                detach_memory=True):
+                detach_memory=True,
+                checkpoint_activations=False):
         batch_size, query_length = hidden_states.size()[:2]
         memory_length = memory_states[0].size(1) if memory_states else 0
 
@@ -247,7 +204,9 @@ class GLMStack(torch.nn.Module):
                     m = m.masked_fill(mask.unsqueeze(1).expand_as(m), 1)
                 if memory_length > 0:
                     m = m.expand(batch_size, -1, -1)
-                    m = torch.cat((hidden_states.new_ones((batch_size, seq_length, memory_length)), m), dim=2)
+                    m = torch.cat((hidden_states.new_ones(
+                        (batch_size, seq_length, memory_length)), m),
+                                  dim=2)
                 m = m.unsqueeze(1)
                 return m
 
@@ -292,6 +251,7 @@ class GLMStack(torch.nn.Module):
             mem_layers = []
 
         def custom(start, end):
+
             def custom_forward(*inputs):
                 layers_ = self.layers[start:end]
                 x_, inputs = inputs[0], inputs[1:]
@@ -308,16 +268,33 @@ class GLMStack(torch.nn.Module):
 
             return custom_forward
 
-        for i, layer in enumerate(self.layers):
-            args = [hidden_states, attention_mask] if not self.use_decoder_layer else [hidden_states,
-                                                                                       encoder_states,
-                                                                                       attention_mask]
-            if self.relative_encoding:
-                args += [position_embeddings, self.r_w_bias, self.r_r_bias]
-            mem_i = memory_states[i] if memory_states else None
-            hidden_states = layer(*args, mem=mem_i)
-            if self.max_memory_length > 0 or return_memory:
-                mem_layers.append(check_detach(hidden_states))
+        if checkpoint_activations:
+            l = 0
+            num_layers = len(self.layers)
+            chunk_length = self.checkpoint_num_layers
+            while l < num_layers:
+                args = [hidden_states, attention_mask
+                        ] if not self.use_decoder_layer else [
+                            hidden_states, encoder_states, attention_mask
+                        ]
+                if self.relative_encoding:
+                    args += [position_embeddings, self.r_w_bias, self.r_r_bias]
+                if memory_states:
+                    args += memory_states[l:l + chunk_length]
+                hidden_states = checkpoint(custom(l, l + chunk_length), *args)
+                l += chunk_length
+        else:
+            for i, layer in enumerate(self.layers):
+                args = [hidden_states, attention_mask
+                        ] if not self.use_decoder_layer else [
+                            hidden_states, encoder_states, attention_mask
+                        ]
+                if self.relative_encoding:
+                    args += [position_embeddings, self.r_w_bias, self.r_r_bias]
+                mem_i = memory_states[i] if memory_states else None
+                hidden_states = layer(*args, mem=mem_i)
+                if self.max_memory_length > 0 or return_memory:
+                    mem_layers.append(check_detach(hidden_states))
 
         # Final layer norm.
         output = self.final_layernorm(hidden_states)
@@ -352,6 +329,7 @@ class GLMModel(nn.Module):
     The output of the forward method are the logits (parallel or
     serial depending on the `parallel_output` flag.
     """
+
     def __init__(self, num_layers,
                  vocab_size,
                  hidden_size,
@@ -362,16 +340,18 @@ class GLMModel(nn.Module):
                  max_sequence_length,
                  max_memory_length,
                  checkpoint_activations,
-                 checkpoint_num_layers=1,
-                 parallel_output=True,
-                 relative_encoding=False,
-                 block_position_encoding=False,
-                 output_predict=True,
-                 spell_length=None,
-                 spell_func='lstm',
-                 attention_scale=1.0):
+                 checkpoint_num_layers,
+                 output_predict,
+                 parallel_output,
+                 relative_encoding,
+                 block_position_encoding,
+                 spell_length,
+                 spell_func,
+                 attention_scale):
 
         super(GLMModel, self).__init__()
+
+        tune_prefix_layers = None
 
         self.parallel_output = parallel_output
         self.output_predict = output_predict
@@ -400,7 +380,11 @@ class GLMModel(nn.Module):
             block_position_encoding=block_position_encoding)
 
         if spell_length is not None:
-            self.prompt_spell = PromptSpell(spell_length, self.hidden_size, spell_func)
+            self.prompt_spell = PromptSpell(spell_length, self.hidden_size,
+                                            spell_func)
+        if tune_prefix_layers != None:
+            print("the model is freezed!")
+            self.freeze_transformer(tune_prefix_layers=tune_prefix_layers)
 
     def freeze_transformer(self, tune_prefix_layers=None):
         log_str = "Freeze transformer"
@@ -420,8 +404,7 @@ class GLMModel(nn.Module):
                 return_memory=False,
                 detach_memory=True,
                 prompt_pos=None,
-                loss_mask=None,
-                **kwargs):
+                labels=None):
         '''
         Multi_token
         input_ids: 2 x num_choices x seq_length
@@ -451,43 +434,32 @@ class GLMModel(nn.Module):
                                               detach_memory=detach_memory)
         logits, hidden_layers = transformer_output
 
-        if os.getenv("ENV_TYPE") == 'deepspeed+mpu':
-            logits_parallel = copy_to_model_parallel_region(logits)
-        else:
-            logits_parallel = logits
+        logits_parallel = logits
 
         if self.output_predict:
             # Parallel logits.
-            logits_parallel = F.linear(logits_parallel, self.word_embeddings.weight)
+            logits_parallel = F.linear(logits_parallel,
+                                       self.word_embeddings.weight)
 
-            if 'labels' in kwargs:
-                assert loss_mask is not None, "loss mask is not None"
+            if labels is not None:
 
-                predictions = logits_parallel[:, :-1].contiguous()
-                labels = kwargs['labels']
-                labels = labels[:, 1:].contiguous()
-                if os.getenv("ENV_TYPE") == 'deepspeed+mpu':
-                    loss = vocab_parallel_cross_entropy(predictions.contiguous().float(),
-                                                        labels).mean()
-                else :
-                    predictions = predictions.reshape(-1, predictions.shape[-1])
-                    labels = labels.reshape(-1)
-                    loss = F.cross_entropy(predictions.contiguous().float(),
-                                           labels.long())
+                loss = F.cross_entropy(
+                    logits_parallel.reshape(-1, logits_parallel.shape[-1]).contiguous().float(), labels.reshape(-1).long())
 
-                loss_mask = loss_mask.reshape(-1)
-                loss = (loss.reshape(-1) * loss_mask).sum() / loss_mask.sum()
                 if self.parallel_output:  # Put in different GPUs
                     return {
                         'logits': logits_parallel,
                         'loss': loss,
                         'hidden_states': hidden_layers
                     }
-                else :
+                else:
                     return {
-                        "logits": gather_from_model_parallel_region(logits_parallel),
-                        "loss": loss,
-                        "hidden_states": hidden_layers
+                        "logits":
+                            logits_parallel,
+                        "loss":
+                            loss,
+                        "hidden_states":
+                            hidden_layers
                     }
             else:
                 if self.parallel_output:  # Put in different GPUs
@@ -495,10 +467,12 @@ class GLMModel(nn.Module):
                         'logits': logits_parallel,
                         'hidden_states': hidden_layers
                     }
-                else :
+                else:
                     return {
-                        "logits": gather_from_model_parallel_region(logits_parallel),
-                        "hidden_states": hidden_layers
+                        "logits":
+                            logits_parallel,
+                        "hidden_states":
+                            hidden_layers
                     }
 
         else:
@@ -518,3 +492,6 @@ class GLMModel(nn.Module):
         self.load_state_dict(checkpoint_load, strict=False)
 
         return checkpoint_load
+
+    def load_weights(self, checkpoint_path):
+        self.load_weights_glm(checkpoint_path)

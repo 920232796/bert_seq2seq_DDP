@@ -184,10 +184,12 @@ def glm_generation_collate_fn(batch):  #padding process in each batch
     position_ids = [data["position_ids"] for data in batch]
     attention_mask = [data['attention_mask'] for data in batch]
     loss_mask = [data['loss_mask'] for data in batch]
+    labels = [data['labels'] for data in batch]
 
     max_length = max([len(t) for t in input_ids])
     for i in range(len(input_ids)):
         input_ids[i] = pad_token(input_ids[i], max_length)
+        labels[i] = pad_token(labels[i], max_length)
         position_ids[i] = pad_position_ids(position_ids[i],
                                                 max_length)
         loss_mask[i] = pad_loss_mask(loss_mask[i], max_length)
@@ -196,5 +198,5 @@ def glm_generation_collate_fn(batch):  #padding process in each batch
         'position_ids': torch.LongTensor(position_ids),
         'attention_mask': torch.LongTensor(attention_mask),
         'loss_mask': torch.LongTensor(loss_mask),
-        'labels': torch.LongTensor(input_ids)
+        'labels': torch.LongTensor(labels),
     }

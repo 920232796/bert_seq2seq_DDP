@@ -197,55 +197,6 @@ class GLMTokenizer:
         ids = self.text_tokenizer.encode(text)
         return ids
 
-    # def encode_plus(
-    #         self,
-    #         source_text,
-    #         target_text=None,
-    # ):
-    #
-    #     sop_id = self.token_sop_id
-    #     eop_id = self.token_eop_id
-    #     sep_id = self.token_sep_id
-    #
-    #     # sop_id = self.get_command('sop').Id #start of piece
-    #     # eop_id = self.get_command('eop').Id #end of piece
-    #     # sep_id = self.get_command('sep').Id #seperation
-    #
-    #     source_tokens = self.EncodeAsIds(source_text)
-    #     source_tokens = [sop_id] + source_tokens + [sep_id]
-    #
-    #     # no pading for consistency
-    #     len_source = len(source_tokens)
-    #     sop_pos = source_tokens.index(sop_id)
-    #     loss_mask = [0]*len_source
-    #     block_position_ids = [0]*len_source
-    #     position_ids = list(range(len_source))
-    #
-    #     if target_text:
-    #         target_tokens = self.EncodeAsIds(target_text)
-    #         target_tokens = target_tokens + [eop_id]
-    #         loss_mask += [1] * len(target_tokens)
-    #         block_position_ids += [0]*len(target_tokens)
-    #         position_ids += [x+len_source for x in range(len(target_tokens))]
-    #         tokens = source_tokens + target_tokens
-    #         position_ids = [position_ids[:-1], block_position_ids[:-1]]
-    #         sample = {
-    #             'input_ids': tokens[:-1],
-    #             'target_ids': tokens[1:],
-    #             'attention_mask': sop_pos,
-    #             'loss_mask': loss_mask[:-1],
-    #             "position_ids": position_ids
-    #         }
-    #     else:
-    #         position_ids = [position_ids, block_position_ids]
-    #         sample = {
-    #             'input_ids': source_tokens,
-    #             'attention_mask': sop_pos,
-    #             "position_ids": position_ids,
-    #             'loss_mask': loss_mask,
-    #         }
-    #     return sample
-
     def trunction(self, input_ids,
                   target_ids=None,
                   max_length=512,
@@ -309,6 +260,8 @@ class GLMTokenizer:
             loss_mask = [1] * len(target_tokens)
 
             tokens = source_tokens + target_tokens + [eop_id]
+            input_ids = tokens[:-1]
+            labels = tokens[1:]
 
             loss_mask = [0] * len(source_tokens) + loss_mask
             position_ids += [mask_pos] * len(target_tokens)
@@ -316,7 +269,8 @@ class GLMTokenizer:
             block_position_ids += list(range(1, len(target_tokens) + 1))
             position_ids = [position_ids, block_position_ids]
 
-            sample = {'input_ids': tokens,
+            sample = {'input_ids': input_ids,
+                      'labels': labels,
                       'attention_mask': sep,
                       'loss_mask': loss_mask,
                       "position_ids": position_ids}
@@ -327,7 +281,8 @@ class GLMTokenizer:
             block_position_ids = block_position_ids + [1]
             position_ids = [position_ids, block_position_ids]
 
-            sample = {'input_ids': np.array(tokens, dtype=np.int64), 'attention_mask': np.array(sep, dtype=np.int64),
+            sample = {'input_ids': np.array(tokens, dtype=np.int64),
+                      'attention_mask': np.array(sep, dtype=np.int64),
                       "position_id": np.array(position_ids, dtype=np.int64)}
         return sample
 

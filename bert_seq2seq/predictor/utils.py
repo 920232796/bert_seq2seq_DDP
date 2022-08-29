@@ -530,7 +530,7 @@ def glm_sample_sequence(model,  tokenizer, context_tokens, context_length,
         mems = []
 
     last_beam_num = 1
-    rp = RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty)
+    # rp = RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty)
     while counter < out_seq_length:
         position_ids = context_tokens.new_ones(last_beam_num, 2, 1)
         position_ids[:, 0] = context_length
@@ -542,7 +542,7 @@ def glm_sample_sequence(model,  tokenizer, context_tokens, context_length,
         mems = output_['hidden_states']
         next_token_logits = output_['logits']
         next_token_logits = next_token_logits[:, -1]
-        next_token_logits = rp(input_ids=tokens, scores=next_token_logits)
+        # next_token_logits = rp(input_ids=tokens, scores=next_token_logits)
         next_token_logits /= temperature
         indices_to_remove = next_token_logits < torch.topk(next_token_logits, top_k)[0][..., -1, None]
         next_token_logits[indices_to_remove] = -float('Inf')
